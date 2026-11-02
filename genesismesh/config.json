@@ -1,10 +1,13 @@
 {
   "name": "Genesis Mesh",
-  "version": "0.1.0-dev.0",
+  "version": "0.1.0-dev.1",
   "slug": "genesismesh",
   "description": "Limited, verifiable home control for people, AI agents, machines and devices",
   "url": "https://github.com/GenesisMeshLabs/genesismesh-homeassistant-app",
-  "arch": ["amd64", "aarch64"],
+  "arch": [
+    "amd64",
+    "aarch64"
+  ],
   "image": "ghcr.io/genesismeshlabs/genesismesh-homeassistant-app",
   "stage": "experimental",
   "homeassistant": "2026.10.0",
