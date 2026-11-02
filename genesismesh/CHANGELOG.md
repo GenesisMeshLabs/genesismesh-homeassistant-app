@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.0-dev.6
+
+- Verified preview image from dc2a70d. See the GitHub prerelease for checks and limitations.
+
 ## 0.1.0-dev.5
 
 - Verified preview image from 1268216. See the GitHub prerelease for checks and limitations.
