@@ -25,9 +25,16 @@ verified fixes for select-label accessibility and the numeric-helper context
 field; numeric intent remains strictly typed and the SDK metadata guard stays
 enabled. No existing household devices are operated by these tests.
 
-The new container and native HA gates are automated in the publication
-workflow; their result must be read from that increment's run. The earlier
-published baseline evidence below is retained separately.
+The increment was published as
+[`0.1.0-dev.3`](https://github.com/GenesisMeshLabs/genesismesh-homeassistant-app/releases/tag/v0.1.0-dev.3).
+Its [publication run](https://github.com/GenesisMeshLabs/genesismesh-homeassistant-app/actions/runs/41489172362)
+passed the Linux software/browser gates, native amd64 and arm64 image smoke,
+real HA Core identity and software helper controls, and native feature constants.
+Anonymous access to the two-platform public image was independently verified.
+The image index digest is
+`sha256:a395a5184a7785a119d38ad5f17e73ffcd1166a81cc154de12caaaddfefc022d`;
+tested source `eaa916cd525805a5fe95c4ee1defc791f59d89b3`.
+The earlier published baseline evidence below is retained separately.
 
 ## Published 0.1.0-dev.2 baseline
 
