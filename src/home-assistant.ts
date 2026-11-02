@@ -5,6 +5,7 @@ import { AppError } from './errors.js';
 import type { Observation } from './contracts.js';
 import { inventory, observeState, serviceSet, type InventoryResource } from './inventory.js';
 import { operationOptions } from './device-actions.js';
+import { groupInventory, readRegistries } from './ha-registry.js';
 
 export interface HomeExecutor {
   preflight(action: CompiledAction): Promise<void>;
@@ -53,7 +54,13 @@ export class HomeAssistant implements HomeExecutor {
     const result = await boundedJson(response, 16 * 1024 * 1024);
     // Inventory still explains read-only coverage when the action catalog is unavailable.
     const services = await this.services().catch(() => new Set<string>());
-    return inventory(result, services);
+    const resources = inventory(result, services);
+    const websocket = this.base === 'http://supervisor/core/api' ? 'ws://supervisor/core/websocket'
+      : this.base.replace(/^http/, 'ws').replace(/\/api\/?$/, '') + '/api/websocket';
+    // Custom fetchers are isolated REST test fixtures, not a network credential source.
+    if (this.fetcher !== globalThis.fetch) return resources;
+    const registry = await readRegistries(websocket, this.token).catch(() => undefined);
+    return registry ? groupInventory(resources, registry) : resources;
   }
 
   private async get(path: string): Promise<Record<string, unknown>> {

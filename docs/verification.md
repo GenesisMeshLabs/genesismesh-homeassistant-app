@@ -1,5 +1,30 @@
 # Experimental app verification
 
+## Native job increment — 2026-11-02
+
+Local checks passed: 40 unit tests, the 18-case authority integration suite,
+managed-home integration, native-job integration and six Python policy tests.
+Seven mocked desktop/mobile browser scenarios cover the guided journey,
+explicit eligibility, drafts, pairing callbacks, limits and ending access.
+Real-app/authority browser acceptance covers all 20 finite capabilities in
+51 resource/option cases against simulated HA responses.
+
+A fresh isolated HA object inside real Core 2026.10.4 exercised the actual
+companion's native schemas, native-user/system-context restrictions, HTTP
+bounds, pairing and diagnostic redaction. A connected test used actual companion
+HTTP → app → released authority: first signed read, allowed35/refused41 under
+cap40 with exact simulated command counts, re-pair mismatch preservation and
+revocation passed. The repeatable native-Core CI job runs this connected test.
+
+Independent source review found a generic-action target-check bypass and
+legacy-edit scope expansion; both now use native job validation. Regression
+tests also cover changed registry identity, single-use pairing, actor override,
+replay/conflicting values, preserved old scopes and credential replacement.
+
+Release/container CI and installed-server reviewer navigation remain pending
+until separately recorded. This is not physical-device or novice acceptance.
+Historical baseline notes below do not mean the new increment is deployed.
+
 Recorded 2026-11-02. Local checks ran on Windows, Node 24.14.0 and Python 3.14.3;
 publication gates ran independently on GitHub-hosted Linux amd64/arm64 runners.
 Dependency pins are in npm metadata, Python requirements/constraints, the

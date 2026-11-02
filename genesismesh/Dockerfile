@@ -7,7 +7,11 @@ COPY tsconfig.json tsconfig.web.json vite.config.ts ./
 COPY src ./src
 COPY tests ./tests
 COPY web ./web
-RUN npm run build && npm prune --omit=dev
+COPY custom_components ./custom_components
+COPY scripts/package-native.mjs ./scripts/package-native.mjs
+COPY genesismesh/config.json ./genesismesh/config.json
+ARG VERSION
+RUN VERSION="$VERSION" npm run build && npm prune --omit=dev
 
 FROM node:24.14.0-trixie-slim@sha256:8c8f12cedb96c3b59642cf30d713943c2b223990c9919b96a141681f62e6e292
 ARG VERSION

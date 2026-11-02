@@ -8,7 +8,7 @@
     "node": ">=24.14.0 <25"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.web.json && vite build",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.web.json && vite build && node scripts/package-native.mjs",
     "test": "npm run build && node --test dist/tests/*.test.js",
     "test:integration": "npm run build && node scripts/integration.mjs",
     "start": "node dist/src/main.js",

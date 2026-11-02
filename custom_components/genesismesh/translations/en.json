@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect a limited home job",
+        "description": "In the Genesis Mesh app, create or open your job and choose Connect to Home Assistant. Enter its single-use pairing code here. One connection runs one bounded job.",
+        "data": {"pairing_code": "Pairing code", "use_custom_address": "My app uses a different installation address (advanced)"}
+      },
+      "address": {
+        "title": "Different installation address",
+        "description": "Use the address for your private Genesis Mesh app. Normal Home Assistant installations use the detected default.",
+        "data": {"app_url": "Genesis Mesh app address"}
+      },
+      "reauth_confirm": {
+        "title": "Reconnect this job",
+        "description": "Open this job in Genesis Mesh and generate a new pairing code. Its permissions and expiry still apply.",
+        "data": {"pairing_code": "New pairing code"}
+      }
+    },
+    "error": {"cannot_pair": "Pairing did not complete. Check that Genesis Mesh is running, the address is correct, and the code has not expired or already been used. Generate a new code in the app if needed."},
+    "abort": {
+      "already_configured": "This job already has a Home Assistant connection. Use its existing connection or reconnect it.",
+      "invalid_discovery": "The discovered app address is invalid. Open Genesis Mesh to check its connection settings.",
+      "wrong_job": "That code belongs to a different job. Generate a code for this job instead.",
+      "reauth_successful": "The job is connected again. Its current limits and expiry apply."
+    }
+  }
+}

@@ -99,12 +99,20 @@ async function everyFiniteOperation(context, page, initialCount) {
   assert.deepEqual([...covered].sort(), [...capabilities].sort(), 'Browser fixture must exercise every shipped finite capability');
   evidence.capabilities = [...covered].sort();
   check(`All ${covered.size} shipped capabilities and ${evidence.operationCases.length} resource/option cases passed through actual browser forms and real authority decisions`);
-  await page.getByRole('button', { name: 'Access', exact: true }).click();
+  await openAdvancedAccess(page);
   return count;
+}
+async function openAdvancedAccess(page) {
+  const button = page.getByRole('button', { name: 'Access', exact: true });
+  if (!await button.isVisible()) await page.getByText('Advanced', { exact: true }).click();
+  await button.click();
 }
 try {
   const { context, page, errors } = await open(1280);
   let count = await commandCount(context);
+  await page.getByRole('heading', { name: 'What would you like help with?', exact: true }).waitFor();
+  await page.getByText('Advanced', { exact: true }).click();
+  await page.getByRole('button', { name: 'Change shared devices', exact: true }).click();
   await page.getByRole('heading', { name: 'Your whole home, in view.' }).waitFor();
   assert.equal(await page.locator('input[type=checkbox]:checked').count(), 0);
   assert.equal(await page.getByRole('checkbox', { name: 'Share Lab person', exact: true }).isDisabled(), true);
@@ -131,7 +139,7 @@ try {
   assert.equal(await commandCount(context), count); check('Real read-only client receives signed observation and cannot switch its selected plug');
   await page.getByRole('button', { name: 'Devices', exact: true }).click();
   await page.getByRole('button', { name: 'Refresh devices', exact: true }).click();
-  await page.getByRole('button', { name: 'Access', exact: true }).click();
+  await openAdvancedAccess(page);
   await profile(page, 'PO observer').getByText(/^Last authenticated request /).waitFor(); check('Authenticated first contact updates visible client usage');
   await page.getByLabel('Give it a familiar name').fill('PO media helper');
   await page.getByLabel('Who or what is it?').selectOption('agent');
@@ -150,7 +158,7 @@ try {
   assert.equal((await allowed.json()).evidenceState, 'acknowledged'); count++; assert.equal(await commandCount(context), count);
   await page.getByRole('button', { name: 'Devices', exact: true }).click();
   await page.getByRole('button', { name: 'Refresh devices', exact: true }).click();
-  await page.getByRole('button', { name: 'Access', exact: true }).click();
+  await openAdvancedAccess(page);
   await snapshot(page, 'access-desktop');
   await profile(page, 'PO media helper').getByRole('button', { name: 'Edit access', exact: true }).click();
   await page.getByLabel('Maximum volume %', { exact: true }).fill('80');
@@ -178,9 +186,9 @@ try {
   await page.getByRole('button', { name: 'Home', exact: true }).click(); await snapshot(page, 'home-desktop');
   assert.deepEqual(errors, []); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false); await context.close();
   const phone = await open(390);
-  await phone.page.getByRole('heading', { name: 'Make your home useful, with limits you own.', exact: true }).waitFor();
+  await phone.page.getByRole('heading', { name: 'What would you like help with?', exact: true }).waitFor();
   for (const destination of ['Home', 'Devices', 'Access', 'Activity']) {
-    await phone.page.getByRole('button', { name: destination, exact: true }).click();
+    if (destination === 'Access') await openAdvancedAccess(phone.page); else await phone.page.getByRole('button', { name: destination, exact: true }).click();
     assert.equal(await phone.page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false);
     await snapshot(phone.page, `${destination.toLowerCase()}-phone`);
   }

@@ -2,7 +2,7 @@ export interface Parameter { name: string; label: string; type: 'number' | 'sele
 export interface ActionOption { capability: string; label: string; parameters: Parameter[] }
 export interface Resource {
   id: string; name: string; entityId: string; kind: string; state: string; available: boolean;
-  operations: ActionOption[]; readable: boolean; reason?: string; deviceId?: string; deviceName?: string; area?: string;
+  operations: ActionOption[]; readable: boolean; reason?: string; deviceId?: string; deviceName?: string; area?: string; areaId?: string; areaName?: string;
 }
 export interface Summary { total: number; returned?: number; truncated?: boolean; controllable: number; readable: number; domains: Record<string, number> }
 export interface Member {
@@ -18,7 +18,9 @@ export interface Operation {
   summary?: string; parameters?: Record<string, string | number>;
 }
 export interface Status { ready: boolean; needsRecovery: boolean; minimum: number; maximum: number; resources: Resource[]; members: Member[]; activity: Operation[]; custody: string;
+  jobs?: Job[]; companion?: { state: 'not_connected' | 'connected'; setupUrl: string; lastSeenAt?: string };
   connectionGuide?: { kind: 'service-client'; baseUrl?: string; network: string; directPhoneJoin: false } }
+export interface Job { id: string; name: string; purpose: 'observer' | 'media'; memberId: string; resources: string[]; capabilities: string[]; hours: number; limits: { maxVolumePct?: number }; connectionState: 'waiting_for_integration' | 'ready_to_test' | 'verified' | 'expired' | 'revoked'; expiresAt?: string; lastVerifiedAt?: string; lastTest?: Operation; verificationPending?: boolean }
 export const readCapability = 'ha.entity.read';
 const kindNames: Record<string, string> = { light: 'Lights', switch: 'Switches & plugs', fan: 'Fans', climate: 'Heating & cooling', media_player: 'TVs & speakers', cover: 'Blinds & covers', sensor: 'Sensors', binary_sensor: 'Status sensors', scene: 'Scenes', vacuum: 'Vacuums', humidifier: 'Humidifiers', input_boolean: 'On/off helpers', input_number: 'Number helpers', number: 'Number controls', input_select: 'Selection helpers', select: 'Selection controls', todo: 'To-do lists' };
 export const kindLabel = (kind: string) => kindNames[kind] ?? kind.replaceAll('_', ' ');

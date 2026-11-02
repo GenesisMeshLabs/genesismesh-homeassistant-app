@@ -7,8 +7,9 @@ import { inventorySummary } from './inventory.js';
 import { CsrfSessions, ingressUser, type HaRoles } from './ha-identity.js';
 import { ManagedHome } from './managed-home.js';
 import { AppError } from './errors.js';
+import type { NativeJobs, JobInput } from './native-jobs.js';
 
-export function createIngress(home: Pick<ManagedHome, 'status' | 'catalog' | 'configure' | 'addMember' | 'updateMember' | 'revoke' | 'act'>, roles: HaRoles, webRoot: string, healthy = () => true) {
+export function createIngress(home: Pick<ManagedHome, 'status' | 'catalog' | 'configure' | 'addMember' | 'updateMember' | 'revoke' | 'act'>, roles: HaRoles, webRoot: string, healthy = () => true, native?: NativeJobs) {
   const app = Fastify({ logger: false, bodyLimit: 16384, trustProxy: false,
     ajv: { customOptions: { coerceTypes: false, removeAdditional: false, useDefaults: false } } });
   const sessions = new CsrfSessions();
@@ -40,12 +41,24 @@ export function createIngress(home: Pick<ManagedHome, 'status' | 'catalog' | 'co
   app.get('/api/session', async request => {
     const user = await human(request); return { name: user.name, csrf: sessions.issue(user.id) };
   });
-  app.get('/api/status', async request => { await human(request); return home.status(); });
+  app.get('/api/status', async request => { await human(request); return { ...home.status(), ...(native?.status() ?? {}) }; });
   app.get('/api/catalog', async request => { await human(request); const resources = await home.catalog(); return { resources, summary: inventorySummary(resources) }; });
   const ids = { type: 'array', minItems: 1, maxItems: 256, uniqueItems: true, items: { type: 'string', pattern: '^r-[a-f0-9]{24}$' } };
   const operationScopes = { type: 'array', minItems: 1, maxItems: 64, uniqueItems: true, items: { enum: capabilities } };
   const object = (properties: object, required: string[]) => ({ type: 'object', additionalProperties: false, properties, required });
   const limits = object({ maxVolumePct: { type: 'number', minimum: 0, maximum: 100 } }, []);
+  if (native) {
+    app.post<{ Body: JobInput }>('/api/jobs', { schema: { body: object({
+      name: { type: 'string', minLength: 1, maxLength: 80 }, purpose: { enum: ['observer', 'media'] },
+      resources: { ...ids, maxItems: 1 }, capabilities: operationScopes, limits,
+      hours: { type: 'integer', minimum: 1, maximum: 720 },
+      includeResource: { type: 'boolean' },
+    }, ['name', 'purpose', 'resources', 'capabilities', 'hours']) } }, async request => native.create(await human(request), request.body));
+    const jobId = { schema: { body: object({ id: { type: 'string', pattern: '^job-[a-f0-9-]{36}$' } }, ['id']) } };
+    app.post<{ Body: { id: string } }>('/api/jobs/pair', jobId, async request => { await human(request); return native.pairing(request.body.id); });
+    app.post<{ Body: { id: string } }>('/api/jobs/test', jobId, async request => { await human(request); return native.requestTest(request.body.id); });
+    app.post<{ Body: { id: string } }>('/api/jobs/revoke', jobId, async request => { await human(request); return native.revoke(request.body.id); });
+  }
   app.post<{ Body: { resources: string[]; minimum: number; maximum: number } }>('/api/setup', {
     schema: { body: object({ resources: ids, minimum: { type: 'number', minimum: 10, maximum: 35 }, maximum: { type: 'number', minimum: 10, maximum: 35 } }, ['resources', 'minimum', 'maximum']) },
   }, async request => { await home.configure(await human(request), request.body.resources, request.body.minimum, request.body.maximum); return home.status(); });
@@ -55,7 +68,9 @@ export function createIngress(home: Pick<ManagedHome, 'status' | 'catalog' | 'co
   }, async request => { await human(request); return home.addMember(request.body.name, request.body.kind, request.body.resources, request.body.hours, request.body.capabilities, request.body.limits); });
   app.post<{ Body: { id: string; resources: string[]; hours: number; capabilities: Capability[]; limits?: { maxVolumePct?: number } } }>('/api/access/update', {
     schema: { body: object({ id: { type: 'string', minLength: 1, maxLength: 80 }, resources: ids, capabilities: operationScopes, limits, hours: { type: 'integer', minimum: 1, maximum: 720 } }, ['id', 'resources', 'hours', 'capabilities']) },
-  }, async request => { await human(request); return home.updateMember(request.body.id, request.body.resources, request.body.capabilities, request.body.hours, request.body.limits); });
+  }, async request => { await human(request); return native?.forMember(request.body.id)
+    ? native.updateMember(request.body.id, request.body.resources, request.body.capabilities, request.body.hours, request.body.limits)
+    : home.updateMember(request.body.id, request.body.resources, request.body.capabilities, request.body.hours, request.body.limits); });
   app.post<{ Body: { id: string } }>('/api/revoke', { schema: { body: object({ id: { type: 'string', minLength: 1, maxLength: 80 } }, ['id']) } },
     async request => { await human(request); await home.revoke(request.body.id); return home.status(); });
   app.post<{ Body: ActionIntent }>('/api/actions', { schema: { body: actionSchema } }, async (request, reply) => {
@@ -72,6 +87,11 @@ export function createIngress(home: Pick<ManagedHome, 'status' | 'catalog' | 'co
   };
   app.get('/', async (_request, reply) => file('index.html', reply));
   app.get('/logo.svg', async (_request, reply) => file('logo.svg', reply));
+  app.get('/genesismesh-integration.zip', async (request, reply) => {
+    await human(request);
+    reply.type('application/zip').header('Content-Disposition', 'attachment; filename="genesismesh-integration.zip"');
+    return readFileSync(resolve(webRoot, 'genesismesh-integration.zip'));
+  });
   app.get<{ Params: { '*': string } }>('/assets/*', async (request, reply) => file(`assets/${request.params['*']}`, reply));
   return app;
 }

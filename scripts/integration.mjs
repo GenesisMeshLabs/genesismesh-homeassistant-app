@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { startAuthorityLab } from './lab.mjs';
 
-for (const file of ['authority.integration.js', 'managed.integration.js']) {
+for (const file of ['authority.integration.js', 'managed.integration.js', 'native-jobs.integration.js']) {
  const lab = await startAuthorityLab();
  try {
   const child = spawn(process.execPath, ['--test', `dist/tests/${file}`], {

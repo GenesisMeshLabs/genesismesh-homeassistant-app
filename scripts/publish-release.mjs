@@ -42,14 +42,20 @@ const notes = `Experimental Home Assistant app ${version}\n\nSource: ${revision}
 writeFileSync(join(temporary, 'notes.md'), notes);
 try { run('gh', ['release', 'view', `v${version}`, '--repo', repository]); }
 catch { run('gh', ['release', 'create', `v${version}`, '--repo', repository, '--target', revision, '--prerelease', '--title', `Genesis Mesh HA ${version}`, '--notes-file', join(temporary, 'notes.md')]); }
+// Publish the tested native companion with the same advertised app version.
+run(process.execPath, ['scripts/package-native.mjs']);
+run('gh', ['release', 'upload', `v${version}`, 'web-dist/genesismesh-integration.zip', 'web-dist/genesismesh-integration.zip.sha256', 'web-dist/genesismesh.zip', '--repo', repository, '--clobber']);
 config.version = version;
+const nativeManifest = JSON.parse(readFileSync('custom_components/genesismesh/manifest.json'));
+nativeManifest.version = version;
+writeFileSync('custom_components/genesismesh/manifest.json', JSON.stringify(nativeManifest, null, 2) + '\n');
 writeFileSync('genesismesh/config.json', JSON.stringify(config, null, 2) + '\n');
 writeFileSync('repository.json', JSON.stringify({ name: 'Genesis Mesh Home Assistant Apps', url: `https://github.com/${repository}`, maintainer: 'GenesisMeshLabs' }, null, 2) + '\n');
 const changelog = readFileSync('genesismesh/CHANGELOG.md', 'utf8');
 if (!changelog.includes(`## ${version}\n`)) writeFileSync('genesismesh/CHANGELOG.md', changelog.replace('# Changelog\n', `# Changelog\n\n## ${version}\n\n- Verified preview image from ${revision.slice(0, 7)}. See the GitHub prerelease for checks and limitations.\n`));
 run('git', ['config', 'user.name', 'github-actions[bot]']);
 run('git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
-run('git', ['add', 'genesismesh/config.json', 'genesismesh/CHANGELOG.md', 'repository.json']);
+run('git', ['add', 'genesismesh/config.json', 'genesismesh/CHANGELOG.md', 'repository.json', 'custom_components/genesismesh/manifest.json']);
 run('git', ['commit', '-m', `release: publish Home Assistant ${version} [skip ci]`]);
 run('git', ['push', 'origin', 'HEAD:main']);
 console.log(`Published ${ref}; Home Assistant metadata now advertises only verified public images.`);

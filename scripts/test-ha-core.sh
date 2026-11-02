@@ -2,7 +2,8 @@
 set -euo pipefail
 name="gm-ha-core-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
 fixture="$(mktemp -d)"
-cleanup() { docker logs "$name" || true; docker rm -f "$name" >/dev/null 2>&1 || true; }
+labpid=""
+cleanup() { if [ -n "$labpid" ]; then kill -TERM "$labpid" 2>/dev/null || true; wait "$labpid" || true; fi; docker logs "$name" || true; docker rm -f "$name" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 cat > "$fixture/configuration.yaml" <<'CONFIG'
 homeassistant:
@@ -34,8 +35,19 @@ input_select:
     initial: Quiet
 CONFIG
 image="$(cat tests/ha-core-image.txt)"
-docker run -d --name "$name" -p 127.0.0.1:8123:8123 -v "$fixture:/config" "$image"
+docker run -d --name "$name" --network host -v "$fixture:/config" "$image"
 node scripts/test-ha-core.mjs
+docker exec "$name" mkdir -p /tmp/genesismesh-native-test/scripts
+docker cp custom_components "$name":/tmp/genesismesh-native-test/custom_components
+docker cp scripts/test-native-companion.py "$name":/tmp/genesismesh-native-test/scripts/test-native-companion.py
+GM_NATIVE_FIXTURE=1 node scripts/browser-lab.mjs > temp/native-core-lab.log 2>&1 &
+labpid=$!
+for attempt in $(seq 1 120); do
+  if node -e "fetch('http://127.0.0.1:8098/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then break; fi
+  sleep 1
+done
+laburl="$(node -p "JSON.parse(require('fs').readFileSync('temp/browser-lab.json')).url")"
+docker exec -e GM_NATIVE_LAB_URL="$laburl" "$name" python /tmp/genesismesh-native-test/scripts/test-native-companion.py
 docker exec -i "$name" python - <<'PY'
 from homeassistant.components.media_player.const import MediaPlayerEntityFeature as M
 from homeassistant.components.fan.const import FanEntityFeature as F

@@ -39,6 +39,12 @@ Read-only and unsupported entity types stay visible with explanations rather
 than disappearing from the home. Discovery does not enroll a physical device as
 a Mesh node. See [device coverage and permissions](docs/device-coverage.md).
 
+The guided **Jobs** journey supports a native HA workflow connection: choose a
+purpose, familiar room/device, enforced limits and expiry, pair the companion
+integration, then verify its actual first read. Native observe, volume and
+playback actions work in HA's existing automation editor. Each job has one
+target. See [the native integration journey](docs/native-integration.md).
+
 Service clients use separate app-issued bearer credentials mapped to authority
 attestations. The ingress interface verifies a fresh native HA administrator
 role for management and native-user requests. Native Mesh enrollment, hardware
@@ -121,6 +127,6 @@ instructions remain in ignored planning files.
 The app is a TypeScript/Fastify service with an HA administrator interface,
 released Genesis Mesh SDK, managed Python authority and SQLite journal/outbox.
 The standalone service profile remains available. Native LLM tool identity,
-remote participant onboarding, approvals, recovery and federation remain next
+household-user onboarding, approvals, recovery and federation remain next
 steps. Tests do not operate an existing home. Published releases are
 experimental; installation and physical acceptance are reported separately.

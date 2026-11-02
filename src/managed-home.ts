@@ -271,6 +271,17 @@ export class ManagedHome {
     });
   }
 
+  /** Replace a connection credential without changing its authority or scope. */
+  async rotateCredential(id: string): Promise<string> {
+    return this.exclusive(async () => {
+      const member = this.state.members.find(m => m.principal.id === id && !m.haUser);
+      if (!member?.principal.enabled || Date.parse(member.principal.expiresAt) <= Date.now()) throw new AppError('access_ended', 'This access has ended.', 409);
+      const credential = randomBytes(32).toString('base64url');
+      member.principal.credentialSha256 = credentialDigest(credential);
+      writePrivate(this.stateFile, this.state); this.rebuild(); return credential;
+    });
+  }
+
   async revoke(id: string): Promise<void> {
     return this.exclusive(async () => {
       const member = this.state.members.find(m => m.principal.id === id && !m.haUser);

@@ -1,5 +1,10 @@
 # Managed Home Assistant profile
 
+The normal starting point is **Jobs**: guided observer/media delegation,
+native room/device selection, enforced limits, companion pairing and its actual
+first status read. See [native setup](native-integration.md). Existing
+service-client management below remains available under Advanced.
+
 The app starts its own pinned Python authority on loopback and persists its keys,
 policies, participant scopes, executor journal and evidence outbox under
 `/data/runtime`. Initial setup does not need a JSON file or an operator key
@@ -31,8 +36,8 @@ not supported workflows in this preview; preserve current data and avoid
 restoring stale authority state.
 
 Service clients use the internal app-network listener on port 8098. No public
-host port is opened. Discovery, remote pairing, physical hardware identity and
-native HA integrations are future work. Credentials identify possession of an
+host port is opened. Remote pairing and physical hardware identity remain
+future work. Credentials identify possession of an
 app profile, not a hardware-attested device. Every service request still goes
 through the existing signature, exact-context, scope and policy checks.
 

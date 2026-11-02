@@ -1,0 +1,88 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import type { LocalAuthorityInfo } from '../src/local-authority.js';
+import { ManagedHome } from '../src/managed-home.js';
+import { HomeAssistant } from '../src/home-assistant.js';
+import { NativeJobs } from '../src/native-jobs.js';
+import { HaSimulator } from './ha-simulator.js';
+import { createServer } from '../src/server.js';
+import { intent } from './helpers.js';
+
+test('native job pairing preserves exclusions, binds the real participant, enforces caps and survives restart', async () => {
+  const local = JSON.parse(readFileSync(process.env['GM_HA_TEST_FIXTURE']!, 'utf8')) as LocalAuthorityInfo;
+  const simulator = new HaSimulator();
+  simulator.extraEntities.push({ entity_id: 'media_player.speaker', state: 'playing', attributes: { friendly_name: 'Living room speaker', supported_features: 20925, volume_level: .3 } });
+  const url = await simulator.start();
+  const directory = join(local.directory, 'native-jobs'); mkdirSync(directory);
+  const home = new ManagedHome(directory, local, new HomeAssistant(url, simulator.token), 'test-genesismesh');
+  await home.initialize();
+  const originalCatalog = home.catalog.bind(home);
+  let registryIdentity = 'original-registry';
+  home.catalog = async () => (await originalCatalog()).map(r => r.kind === 'media_player' ? { ...r, registryId: registryIdentity, deviceId: 'original-device' } : r);
+  let native = new NativeJobs(directory, home);
+  const service = createServer(() => home.serviceRuntime()?.config, { execute: (principal, body) => home.actParticipant(principal.id, body) }, home.journal, 'supervisor', id => home.noteClientVisit(id), native);
+  const owner = { id: 'owner', name: 'Owner' };
+  const catalog = await home.catalog(), speaker = catalog.find(r => r.kind === 'media_player')!, excluded = catalog.find(r => r.kind === 'light')!;
+  try {
+    const { job } = await native.create(owner, { name: 'Living-room media helper', purpose: 'media', resources: [speaker.id], capabilities: ['ha.entity.read', 'ha.media.volume', 'ha.media.transport'], hours: 24, limits: { maxVolumePct: 40 } });
+    assert.deepEqual(home.status().resources.map(r => r.id), [speaker.id]);
+    assert.equal(job.connectionState, 'waiting_for_integration');
+    await assert.rejects(() => native.create(owner, { name: 'Excluded', purpose: 'observer', resources: [excluded.id], capabilities: ['ha.entity.read'], hours: 24 }), /not eligible/);
+    const code = await native.pairing(job.id);
+    assert.ok(!JSON.stringify(native.status()).includes(code.code));
+    assert.equal((await service.inject({ method: 'POST', url: '/v1/native/pair', headers: { origin: 'https://attacker.invalid' }, payload: { code: code.code } })).statusCode, 403);
+    assert.equal((await service.inject({ method: 'POST', url: '/v1/native/pair', payload: { code: code.code, expectedJobId: 'wrong-job' } })).statusCode, 409);
+    const paired = await service.inject({ method: 'POST', url: '/v1/native/pair', payload: { code: code.code } });
+    assert.equal(paired.statusCode, 200);
+    const { credential } = paired.json();
+    assert.equal((await service.inject({ method: 'POST', url: '/v1/native/pair', payload: { code: code.code } })).statusCode, 401);
+    assert.ok(!JSON.stringify(native.status()).includes(credential));
+    assert.equal(native.status().jobs[0]!.connectionState, 'ready_to_test');
+    await native.requestTest(job.id);
+    const headers = { authorization: `Bearer ${credential}` };
+    const route = `/v1/native/jobs/${job.id}/actions`;
+    const list = (await service.inject({ url: '/v1/native/jobs', headers })).json();
+    assert.deepEqual(list.jobs[0].allowedHaUserIds, ['owner']);
+    assert.equal(list.jobs[0].allowSystem, true);
+    assert.equal(native.status().jobs[0]!.connectionState, 'ready_to_test', 'Polling alone is not verification');
+    const read = await service.inject({ method: 'POST', url: route, headers, payload: list.jobs[0].verification });
+    assert.equal(read.statusCode, 200); assert.equal(read.json().commandState, 'observed');
+    assert.equal(read.json().subjectId, job.memberId); assert.equal(read.json().evidenceState, 'acknowledged');
+    assert.equal(native.status().jobs[0]!.connectionState, 'verified');
+    const before = simulator.calls.length;
+    const request = { ...intent(), resourceId: speaker.id, capability: 'ha.media.volume', parameters: { volumePct: 35 } };
+    const accepted = await service.inject({ method: 'POST', url: route, headers, payload: request });
+    assert.equal(accepted.statusCode, 200); assert.equal(simulator.calls.length, before + 1);
+    assert.equal((await service.inject({ method: 'POST', url: route, headers, payload: request })).json().id, accepted.json().id);
+    assert.equal(simulator.calls.length, before + 1);
+    assert.equal((await service.inject({ method: 'POST', url: route, headers, payload: { ...request, parameters: { volumePct: 36 } } })).statusCode, 409);
+    const denied = await service.inject({ method: 'POST', url: route, headers, payload: { ...request, ...intent(), resourceId: speaker.id, capability: 'ha.media.volume', parameters: { volumePct: 41 } } });
+    assert.equal(denied.statusCode, 403); assert.ok(denied.json().decisionId); assert.equal(simulator.calls.length, before + 1);
+    assert.equal((await service.inject({ method: 'POST', url: route, headers, payload: { ...request, actor: 'owner' } })).statusCode, 400);
+    assert.equal((await service.inject({ method: 'POST', url: '/v1/native/jobs/job-wrong/actions', headers, payload: request })).statusCode, 404);
+    for (const [resources, capabilities] of [
+      [[excluded.id], ['ha.entity.read']], [[speaker.id, excluded.id], ['ha.entity.read']],
+      [[speaker.id], ['ha.entity.read', 'ha.switch.set']], [[speaker.id], ['ha.media.volume']],
+    ] as const) await assert.rejects(() => native.updateMember(job.memberId, [...resources], [...capabilities] as never, 24, { maxVolumePct: 40 }), /original device/);
+    registryIdentity = 'replaced-registry';
+    const changedTarget = { ...intent(), resourceId: speaker.id, capability: 'ha.entity.read', parameters: {} };
+    assert.equal((await service.inject({ method: 'POST', url: '/v1/actions', headers, payload: changedTarget })).statusCode, 409);
+    assert.equal((await service.inject({ method: 'POST', url: route, headers, payload: changedTarget })).statusCode, 409);
+    assert.equal(simulator.calls.length, before + 1);
+    registryIdentity = 'original-registry';
+    const second = await native.create(owner, { name: 'Explicitly reviewed observer', purpose: 'observer', resources: [excluded.id], capabilities: ['ha.entity.read'], hours: 24, includeResource: true });
+    assert.deepEqual(home.status().members.find(m => m.id === job.memberId)!.resources, [speaker.id], 'Explicit new eligibility must not broaden previous jobs');
+    assert.deepEqual(second.job.resources, [excluded.id]);
+    native = new NativeJobs(directory, home);
+    assert.equal(native.status().jobs[0]!.connectionState, 'verified');
+    assert.equal(native.nativeList(job.memberId).jobs[0]!.id, job.id);
+    const replacement = await native.pairing(job.id);
+    assert.equal((await service.inject({ url: '/v1/resources', headers })).statusCode, 401, 'Re-pair immediately invalidates old credential');
+    const next = await native.pair(replacement.code, 'fixture');
+    await native.revoke(job.id);
+    assert.equal(native.status().jobs[0]!.connectionState, 'revoked');
+    assert.equal((await service.inject({ url: '/v1/resources', headers: { authorization: `Bearer ${next.credential}` } })).statusCode, 401);
+  } finally { await service.close(); await home.close(); await simulator.close(); }
+});

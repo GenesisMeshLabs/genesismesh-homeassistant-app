@@ -9,6 +9,7 @@ import { ManagedHome } from '../dist/src/managed-home.js';
 import { HomeAssistant } from '../dist/src/home-assistant.js';
 import { createIngress } from '../dist/src/ingress.js';
 import { createServer as createClientApi } from '../dist/src/server.js';
+import { NativeJobs } from '../dist/src/native-jobs.js';
 
 const lab = await startAuthorityLab();
 const simulator = new HaSimulator();
@@ -30,12 +31,16 @@ simulator.extraEntities.push(
 const directory = join(lab.directory, 'browser-app'); mkdirSync(directory);
 const home = new ManagedHome(directory, lab, new HomeAssistant(await simulator.start(), simulator.token), 'browser-fixture');
 await home.initialize();
+const native = new NativeJobs(directory, home);
 const ui = createIngress(home, { requireAdministrator: async id => {
   if (id !== 'browser-owner') throw new Error('Fixture identity refused');
   return { id, name: 'Lab owner' };
-} }, resolve('web-dist'));
+} }, resolve('web-dist'), () => true, native);
 const clients = createClientApi(() => home.serviceRuntime()?.config, { execute: (principal, body) => home.actParticipant(principal.id, body) }, home.journal,
-  'supervisor', id => home.noteClientVisit(id));
+  'supervisor', id => home.noteClientVisit(id), native);
+// Explicit disposable CI profile only. Real HA Core's isolated test process
+// reaches this numeric-loopback listener through Docker's host network.
+if (process.env.GM_NATIVE_FIXTURE === '1') await clients.listen({ host: '127.0.0.1', port: 8098 });
 const server = createServer(async (req, res) => {
   try {
     if (req.url === '/fixture/status') { res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ profile: 'real-app-real-NA-simulated-Supervisor-and-HA', simulatedCommands: simulator.calls.length })); return; }

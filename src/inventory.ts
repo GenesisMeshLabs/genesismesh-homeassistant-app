@@ -5,6 +5,7 @@ import { AppError } from './errors.js';
 
 export interface InventoryResource extends Resource {
   state: string; available: boolean; readable: boolean; operations: ActionOption[]; reason?: string;
+  areaId?: string; areaName?: string; deviceId?: string; deviceName?: string; registryId?: string;
 }
 export function serviceSet(value: unknown): Set<string> {
   if (!Array.isArray(value)) throw new AppError('home_unavailable', 'Home Assistant returned an invalid action catalog.', 503);

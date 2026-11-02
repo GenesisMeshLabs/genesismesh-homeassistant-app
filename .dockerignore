@@ -15,3 +15,9 @@
 !genesismesh/
 !genesismesh/Dockerfile
 !genesismesh/entrypoint.sh
+!genesismesh/config.json
+!custom_components/
+!custom_components/**
+!scripts/
+!scripts/package-native.mjs
+**/__pycache__/**

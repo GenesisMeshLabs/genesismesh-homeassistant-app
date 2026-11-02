@@ -23,7 +23,8 @@ const rawStates = [
   { entity_id: 'person.fixture_2', state: 'Private location', attributes: { friendly_name: 'Household member', latitude: 1.23 } },
 ];
 const services = new Set(['climate.set_temperature', 'climate.set_hvac_mode', 'light.turn_on', 'light.turn_off', 'switch.turn_on', 'switch.turn_off', 'media_player.volume_set', 'media_player.media_pause']);
-const standardResources = inventory(rawStates, services);
+const standardResources = inventory(rawStates, services).map(resource => ({ ...resource,
+  areaName: resource.kind === 'sensor' ? 'Garden' : 'Living room', deviceId: `fixture-${resource.kind}`, deviceName: resource.kind === 'media_player' ? 'Living-room sound system' : resource.name }));
 const named = name => standardResources.find(resource => resource.name === name);
 let resources = standardResources;
 let state, created, updated, dispatched, journal;
@@ -31,6 +32,7 @@ const reset = (customResources = standardResources) => {
   journal?.close(); journal = new Journal(mkdtempSync(join(resolve('temp'), 'web-contract-')));
   resources = customResources;
   state = { ready: false, needsRecovery: false, minimum: 19, maximum: 23, resources: [], members: [], activity: [], custody: 'Local UI contract fixture. Not physical acceptance.',
+    jobs: [], companion: { state: 'not_connected', setupUrl: '/config/integrations/dashboard/add?domain=genesismesh' },
     connectionGuide: { kind: 'service-client', baseUrl: 'http://fixture-genesismesh:8098', network: 'Home Assistant private app network', directPhoneJoin: false } };
   created = []; updated = []; dispatched = [];
 };
@@ -62,8 +64,32 @@ const server = createServer(async (req, res) => {
     }
     if (relative === 'api/access/update') {
       updated.push(input); Object.assign(state.members.find(member => member.id === input.id), { resources: input.resources, capabilities: input.capabilities, limits: input.limits ?? {}, legacyLimited: false, expiresAt: new Date(Date.now() + input.hours * 3600000).toISOString(), connection: { state: 'not_connected' } });
+      const job = state.jobs.find(item => item.memberId === input.id);
+      if (job) { assert.deepEqual(input.resources, job.resources); assert.deepEqual(input.capabilities, job.capabilities); Object.assign(job, { hours: input.hours, limits: input.limits, connectionState: job.connectionState === 'waiting_for_integration' ? 'waiting_for_integration' : 'ready_to_test' }); delete job.lastVerifiedAt; delete job.lastTest; }
     }
     if (relative === 'api/revoke') Object.assign(state.members.find(member => member.id === input.id), { enabled: false, connection: { state: 'revoked' } });
+    if (relative === 'api/jobs') {
+      assert.equal(input.resources.length, 1); assert.ok(input.capabilities.includes(readCapability));
+      if (state.ready) {
+        if (!state.resources.some(resource => resource.id === input.resources[0])) {
+          assert.equal(input.includeResource, true, 'An excluded target requires explicit owner confirmation');
+          state.resources.push(resources.find(resource => resource.id === input.resources[0]));
+        }
+      }
+      else { state.ready = true; state.resources = resources.filter(resource => input.resources.includes(resource.id)); }
+      const memberId = `job-member-${state.jobs.length + 1}`;
+      const job = { ...input, id: `job-${state.jobs.length + 1}`, memberId, connectionState: 'waiting_for_integration' };
+      state.jobs.push(job); state.members.push({ id: memberId, name: input.name, kind: 'service', resources: input.resources, capabilities: input.capabilities, limits: input.limits, enabled: true, expiresAt: new Date(Date.now() + input.hours * 3600000).toISOString(), nativeUser: false, legacyLimited: false });
+      value = { job };
+    }
+    if (relative === 'api/jobs/pair') value = { code: 'mock-single-use-code', expiresAt: new Date(Date.now() + 600000).toISOString(), setupUrl: state.companion.setupUrl };
+    if (relative === 'api/jobs/test') {
+      const job = state.jobs.find(item => item.id === input.id); assert.equal(job.connectionState === 'ready_to_test' || job.connectionState === 'verified', true);
+      job.verificationPending = true; value = { job };
+      // Explicitly simulated companion callback. The real companion is exercised in native integration acceptance.
+      setTimeout(() => { job.verificationPending = false; job.connectionState = 'verified'; job.lastVerifiedAt = new Date().toISOString(); job.lastTest = { id: `test-${Date.now()}`, commandState: 'observed', evidenceState: 'acknowledged' }; }, 200);
+    }
+    if (relative === 'api/jobs/revoke') { const job = state.jobs.find(item => item.id === input.id); job.connectionState = 'revoked'; state.members.find(member => member.id === job.memberId).enabled = false; }
     if (relative === 'api/actions') {
       dispatched.push(input); const owner = state.members.find(member => member.nativeUser);
       const compiled = compileAction({ homeId: 'web-fixture', resources: state.resources }, owner, input);
@@ -91,10 +117,14 @@ const open = async width => {
   return { context, page, errors };
 };
 const profile = (page, name) => page.getByRole('article').filter({ has: page.getByRole('heading', { name, exact: true }) });
+const openAdvanced = async page => { const details = page.locator('details.advanced'); if (await details.getAttribute('open') === null) await details.locator('summary').click(); };
+const legacySharing = async page => { await openAdvanced(page); await page.locator('details.advanced').getByRole('button', { name: 'Change shared devices', exact: true }).click(); };
+const legacyAccess = async page => { await openAdvanced(page); await page.getByRole('button', { name: 'Access', exact: true }).click(); };
 try {
   for (const width of [1280, 390]) {
     reset(); const { context, page, errors } = await open(width);
-    await page.getByRole('heading', { name: 'Your whole home, in view.' }).waitFor();
+    await page.getByRole('heading', { name: 'What would you like help with?' }).waitFor();
+    await legacySharing(page);
     assert.equal(await page.locator('input[type=checkbox]:checked').count(), 0);
     assert.equal(await page.getByRole('checkbox', { name: 'Share Household member', exact: true }).isDisabled(), true);
     assert.equal(await page.getByRole('checkbox', { name: 'Share Entry camera', exact: true }).isDisabled(), false);
@@ -190,7 +220,7 @@ try {
     state.members.find(member => member.name === 'Media helper').connection = { state: 'active', lastRequestAt: new Date().toISOString() };
     await page.getByRole('button', { name: 'Devices', exact: true }).click();
     await page.getByRole('button', { name: 'Refresh devices', exact: true }).click();
-    await page.getByRole('button', { name: 'Access', exact: true }).click();
+    await legacyAccess(page);
     await profile(page, 'Media helper').getByText(/^Last authenticated request /).waitFor();
     await page.getByRole('button', { name: 'Devices', exact: true }).click();
     await page.getByLabel('Find a device or entity', { exact: true }).fill('');
@@ -206,6 +236,8 @@ try {
   console.log('Existing-home migration preserves selections and does not issue new access.');
   reset(inventory(Array.from({ length: 300 }, (_, index) => ({ entity_id: `sensor.bulk_${index}`, state: '21', attributes: { friendly_name: `Bulk sensor ${index}` } })), new Set()));
   const bulk = await open(390);
+  await bulk.page.getByRole('heading', { name: 'What would you like help with?' }).waitFor();
+  await legacySharing(bulk.page);
   await bulk.page.getByRole('heading', { name: 'Your whole home, in view.' }).waitFor();
   assert.equal(await bulk.page.locator('input[type=checkbox]:checked').count(), 0);
   await bulk.page.getByRole('button', { name: 'Select matching shareable items', exact: true }).click();
@@ -215,4 +247,97 @@ try {
   await bulk.page.getByText('0 selected', { exact: true }).waitFor();
   await bulk.context.close();
   console.log('Large-home explicit selection is capped at256 with no automatic sharing or access creation.');
+  for (const width of [1280, 390]) {
+    reset(); const { page, context, errors } = await open(width);
+    await page.getByRole('button', { name: 'Give something a job', exact: true }).click();
+    await page.getByRole('heading', { name: 'Choose a task', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByLabel('Job name', { exact: true }).fill('Energy observer');
+    await page.getByRole('button', { name: 'Finish later', exact: true }).click();
+    await page.getByRole('button', { name: 'Resume setup', exact: true }).click();
+    assert.equal(await page.getByLabel('Job name', { exact: true }).inputValue(), 'Energy observer');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByRole('heading', { name: 'Garden', exact: true }).waitFor();
+    await page.getByRole('radio', { name: 'Choose Garden temperature', exact: true }).check();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    assert.equal(await page.getByRole('checkbox', { name: 'Allow job Read current status', exact: true }).isDisabled(), true);
+    await page.getByLabel('Job access lasts', { exact: true }).selectOption('1');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByRole('heading', { name: 'Review Energy observer', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Create job and connect', exact: true }).click();
+    await page.getByText('Finish connecting', { exact: true }).waitFor();
+    assert.equal(state.jobs.length, 1); assert.deepEqual(state.jobs[0].capabilities, [readCapability]); assert.equal(state.resources.length, 1);
+    assert.equal(await page.getByRole('button', { name: 'Test this connection', exact: true }).isDisabled(), true);
+    await page.getByRole('button', { name: 'Get a connection code', exact: true }).click();
+    await page.getByText('mock-single-use-code', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('link', { name: 'Open Home Assistant integration setup', exact: true }).getAttribute('href'), '/config/integrations/dashboard/add?domain=genesismesh');
+    state.companion.state = 'connected'; state.jobs[0].connectionState = 'ready_to_test';
+    await page.getByRole('button', { name: 'Check connection', exact: true }).click();
+    await page.getByText('Integration pairing accepted', { exact: true }).waitFor();
+    assert.equal(await page.getByText('mock-single-use-code', { exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Test this connection', exact: true }).click();
+    await page.getByText('First request verified', { exact: true }).waitFor();
+    assert.equal(dispatched.length, 0, 'Wizard verification must not send native admin device controls');
+    await page.getByRole('heading', { name: 'Ready for your Home Assistant workflow', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Back to jobs', exact: true }).click();
+    await profile(page, 'Energy observer').getByText('Connection tested', { exact: true }).waitFor();
+    await page.screenshot({ path: `temp/native-jobs-${width}.png`, fullPage: true });
+    await page.getByRole('button', { name: 'Give something a job', exact: true }).click();
+    await page.getByRole('button', { name: /^Give a media helper limits/ }).click();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    assert.equal(await page.getByRole('radio', { name: 'Choose Living-room speaker', exact: true }).count(), 1);
+    await page.getByText('TVs & speakers · Not yet eligible for Mesh', { exact: true }).waitFor();
+    assert.equal(state.resources.length, 1, 'Showing an excluded target must not share it');
+    await page.getByRole('radio', { name: 'Choose Living-room speaker', exact: true }).check();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    assert.equal(await page.getByRole('button', { name: 'Create job and connect', exact: true }).isDisabled(), true);
+    await page.getByRole('button', { name: 'Finish later', exact: true }).click();
+    await profile(page, 'Energy observer').getByRole('button', { name: 'Use in Home Assistant', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to jobs', exact: true }).click();
+    await page.getByRole('button', { name: 'Resume setup', exact: true }).click();
+    await page.getByRole('heading', { name: 'Connect & verify', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Create job and connect', exact: true }).isDisabled(), true);
+    const observerScope = [...state.members.find(member => member.id === state.jobs[0].memberId).resources];
+    await page.getByRole('checkbox', { name: 'Make Living-room speaker eligible and give this job the reviewed access', exact: true }).check();
+    await page.getByRole('button', { name: 'Create job and connect', exact: true }).click();
+    await page.getByText('Finish connecting', { exact: true }).waitFor();
+    assert.equal(state.resources.length, 2); assert.equal(state.jobs.length, 2);
+    assert.deepEqual(state.members.find(member => member.id === state.jobs[0].memberId).resources, observerScope, 'Explicit new eligibility must not broaden existing access');
+    await page.getByRole('button', { name: 'Back to jobs', exact: true }).click();
+    await profile(page, 'Energy observer').getByRole('button', { name: 'End this job', exact: true }).click();
+    await profile(page, 'Energy observer').getByText('Access ended', { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false); assert.deepEqual(errors, []);
+    await context.close();
+    console.log(`Mocked native-job wizard passed at ${width}px: purpose-first, grouped targets, resumed draft, one scope review, private pairing code, simulated-companion callback verification state, exclusions and ending access.`);
+  }
+  reset(); state.ready = true; state.resources = standardResources; state.companion.state = 'connected';
+  const media = await open(390);
+  await media.page.getByRole('button', { name: 'Give something a job', exact: true }).click();
+  await media.page.getByRole('button', { name: /^Give a media helper limits/ }).click();
+  await media.page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await media.page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await media.page.getByRole('heading', { name: 'Living-room sound system', exact: true }).waitFor();
+  await media.page.getByRole('radio', { name: 'Choose Living-room speaker', exact: true }).check();
+  await media.page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await media.page.getByLabel('Maximum job volume %', { exact: true }).fill('101');
+  assert.equal(await media.page.getByRole('button', { name: 'Continue', exact: true }).isDisabled(), true);
+  await media.page.getByLabel('Maximum job volume %', { exact: true }).fill('');
+  assert.equal(await media.page.getByRole('button', { name: 'Continue', exact: true }).isDisabled(), true);
+  await media.page.getByLabel('Maximum job volume %', { exact: true }).fill('40');
+  await media.page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await media.page.getByRole('button', { name: 'Create job and connect', exact: true }).click();
+  await media.page.getByText('Finish connecting', { exact: true }).waitFor();
+  assert.equal(state.jobs[0].limits.maxVolumePct, 40); assert.ok(state.jobs[0].capabilities.includes('ha.media.transport'));
+  assert.equal(await media.page.getByRole('button', { name: 'Test this connection', exact: true }).isDisabled(), true, 'Another paired job must not imply this job is connected');
+  await media.page.getByRole('button', { name: 'Back to jobs', exact: true }).click();
+  await media.page.getByRole('button', { name: 'Edit limits', exact: true }).click();
+  assert.equal(await media.page.getByRole('radio').count(), 0);
+  await media.page.getByLabel('Revised maximum volume %', { exact: true }).fill('55');
+  await media.page.getByRole('button', { name: 'Save job limits', exact: true }).click();
+  await profile(media.page, 'Media helper').getByText('55%', { exact: true }).waitFor();
+  assert.equal(state.jobs[0].limits.maxVolumePct, 55); assert.deepEqual(state.jobs[0].resources, [named('Living-room speaker').id]);
+  await media.context.close();
+  console.log('Media wizard enforces intentional volume input and per-job connection state even when another integration connection exists.');
 } finally { journal?.close(); await browser.close(); await new Promise(ok => server.close(ok)); }

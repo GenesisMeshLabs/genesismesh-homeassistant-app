@@ -1,0 +1,59 @@
+observe:
+  name: Observe a job's device
+  description: Read the exact device permitted by this connection, with a Genesis Mesh decision and signed record. Does not control a device.
+  fields:
+    connection:
+      name: Connection
+      description: The paired workflow connection. Its identity is not an individual automation identity.
+      required: true
+      selector:
+        config_entry:
+          integration: genesismesh
+set_volume:
+  name: Set volume within a job's limits
+  description: Request volume on the connection's exact speaker. Genesis Mesh enforces its cap and expiry. A refused request sends no device command.
+  fields:
+    connection:
+      name: Connection
+      required: true
+      selector:
+        config_entry:
+          integration: genesismesh
+    volume_pct:
+      name: Volume
+      description: A request above the job's volume limit will be refused.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: box
+playback:
+  name: Control playback for a job
+  description: Request playback on the connection's selected speaker. Only permitted and device-supported actions can execute.
+  fields:
+    connection:
+      name: Connection
+      required: true
+      selector:
+        config_entry:
+          integration: genesismesh
+    action:
+      name: Playback
+      required: true
+      selector:
+        select:
+          options:
+            - label: Play
+              value: play
+            - label: Pause
+              value: pause
+            - label: Stop
+              value: stop
+            - label: Next track
+              value: next
+            - label: Previous track
+              value: previous
+

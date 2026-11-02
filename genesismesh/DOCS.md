@@ -7,11 +7,15 @@ or newer, and an amd64 or aarch64 system. This is an experimental preview.
    Settings → Apps → App store → Repositories.
 2. Install **Genesis Mesh**, start it, then choose **Open Web UI** as an HA
    administrator. No keys, tokens or JSON files need to be copied for setup.
-3. Browse the whole-home inventory and choose what to share. Set heating bounds
-   if selecting climate entities. Setup itself does not operate a device.
-4. Choose resources, permitted operations and expiry for each requester. An
-   observer can read without controlling anything. Save its private credential once.
-   End access to block subsequent requests. Activity explains each result.
+3. Choose **Give something a job**. Select an observer or media purpose, one
+   familiar room/device, operations, expiry and volume limit where applicable.
+   An ineligible device requires an explicit review; existing access stays scoped.
+4. Install the native Genesis Mesh companion integration once, then pair it
+   using the job's short-lived code. Choose **Test this connection** to verify
+   its real first status read. Use its native actions in HA's existing editor.
+   See [native integration setup](https://github.com/GenesisMeshLabs/genesismesh-homeassistant-app/blob/main/docs/native-integration.md).
+5. Jobs show connection state, limits and last verification. Edit limits or end
+   access there. Existing service-client profiles remain available under Advanced.
 
 ## Service clients
 
