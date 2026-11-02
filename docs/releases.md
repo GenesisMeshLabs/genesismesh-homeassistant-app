@@ -25,9 +25,10 @@ metadata over newer source. `workflow_dispatch` is an optional recovery path,
 not part of normal publication. A failed gate leaves the previously advertised
 version in place. There are no mutable `latest` tags for HA installations.
 
-The first GHCR package must be made public once by the publisher; GitHub creates
-new packages private by default. Subsequent publications reuse that public
-package. The anonymous-access gate prevents a private image being advertised.
+The package used by this repository is public; anonymous access was verified for
+both published iterations. If this pipeline is forked to a new package, check
+its initial visibility: GitHub documents new packages as private by default.
+The anonymous-access gate prevents a private image being advertised.
 Repository/organization settings must continue to permit Actions package writes
 and bot commits. No household credentials are stored in GitHub.
 

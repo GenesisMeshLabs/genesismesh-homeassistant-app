@@ -1,15 +1,21 @@
-# Development-proof verification
+# Experimental app verification
 
-Recorded 2026-11-02 on Windows, Node 24.14.0, npm 11.11.1 and Python 3.14.3.
-Dependency pins are in the npm manifest/lock and Python authority requirements.
-This records P0-B/C evidence, not completion of the entire P0 program or a
-production/physical acceptance claim.
+Recorded 2026-11-02. Local checks ran on Windows, Node 24.14.0 and Python 3.14.3;
+publication gates ran independently on GitHub-hosted Linux amd64/arm64 runners.
+Dependency pins are in npm metadata, Python requirements/constraints, the
+Dockerfile and the HA Core image fixture. This is software preview evidence,
+not completion of the entire P0 program or physical/production acceptance.
 
 | Check | Result | Scope |
 | --- | --- | --- |
 | TypeScript compilation | Passed | Included in unit and integration commands |
-| `npm test` | 25 passed | Authentication/config, strict request validation, finite adapters, concurrent duplicates, uncertain outcomes, writer exclusion across processes, restart/outbox persistence |
-| `npm run test:integration` | 18 passed | One top-level test with 17 scenarios; real released NA/SDK plus HA API simulator |
+| `npm test` | 29 passed | Original executor boundaries plus native-role protocol, ingress peer and CSRF boundaries |
+| `npm run test:integration` | 18 + 1 passed | Real released NA/SDK, HA API simulator, managed setup, scope/parameter denial, restart and revocation |
+| Browser journeys | Passed at 1280px and 390px | Shipped Lit bundle; mocked API, setup/access/revoke/action/activity and nested ingress paths |
+| Native amd64 and arm64 images | Passed on both runners | Fresh automatic authority, scoped machine, signed temperature denial, fresh native-role check, non-root PID 1, header spoofing refusal, persistent restart and revoke without dispatch |
+| Real HA Core 2026.10.4 | Passed | Actual onboarding/auth, native owner/admin/regular/inactive users, role changes, unknown users and REST catalog; no physical dispatch |
+| Anonymous image access | Passed independently | Public OCI index contains Linux amd64 and arm64; digest matches release |
+| Automatic publication | Two iterations passed | Push to main produced immutable images, GitHub prerelease and bot-updated install metadata without manual tagging/uploads |
 | Actual CLI startup | Passed in integration | Core-format key files, private config, ephemeral loopback listener, authenticated catalog |
 | Signed evidence export | Passed | SDK offline verification of actual NA records; tampering refused |
 | Evaluator privilege separation | Passed | Standard runtime key refused membership issuance and policy publication |
@@ -19,10 +25,10 @@ production/physical acceptance claim.
 
 ## Not performed or incomplete
 
-- Docker/HA OS/container packaging: Docker executable was unavailable here.
-- Native HA integration, ingress identity and LLM/MCP identity propagation.
-- Real HA instance and physical lighting/climate hardware.
-- Linux/arm64 runtime checks, browser/novice UX and independent security review.
+- Actual HA OS/Supervisor app installation, ingress identity-header injection,
+  appliance update/backup lifecycle, and physical lighting/climate hardware.
+- Native LLM/MCP identity propagation and full native device enrollment.
+- Novice household acceptance and independent security review.
 - Node enrollment, key succession, approvals, offline grants, backup restore,
   federation, quotas and media/security-sensitive control.
 
@@ -43,3 +49,15 @@ reported as passed. Do not reuse those lab keys in a real home.
 Local run logs: `temp/unit-results.log`, `temp/integration-results.log` and
 `temp/python-install.log`. Independent review and deployment acceptance remain
 future gates; software tests do not substitute for them.
+
+## Published evidence
+
+- [First automatic publication](https://github.com/GenesisMeshLabs/genesismesh-homeassistant-app/actions/runs/41412223157): `0.1.0-dev.1`.
+- [Second automatic publication](https://github.com/GenesisMeshLabs/genesismesh-homeassistant-app/actions/runs/41412749024): `0.1.0-dev.2`, including real HA Core compatibility.
+- [Release and immutable image digest](https://github.com/GenesisMeshLabs/genesismesh-homeassistant-app/releases/tag/v0.1.0-dev.2).
+
+The second version's public index digest is
+`sha256:dd23f3ad135705e4bfca9617d6a532f36faa698631e0b3e1c36db8fab2e2da46`.
+Its tested source is `89435583fcf323481ac36aa66a073d61887ebe0c`.
+Container smoke uses a simulated Supervisor proxy; the additional real Core
+test establishes API/role compatibility, not HA OS or physical acceptance.

@@ -1,8 +1,9 @@
 # First executor architecture
 
-Status: P0-B/C development proof, not the entire product plan. The remaining P0
-gates are real HA OS ingress/privilege testing and native LLM/MCP identity
-propagation. There is no end-user UI, HA integration or physical acceptance yet.
+This describes the standalone executor foundation. The installable experimental
+app adds [managed authority custody and an HA administrator interface](managed-app.md)
+over that foundation. Remaining gates include HA OS lifecycle/ingress acceptance,
+native LLM/MCP identity propagation, independent review and physical acceptance.
 
 ## Product boundary
 
