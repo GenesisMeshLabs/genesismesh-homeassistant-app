@@ -16,11 +16,11 @@ export function endpoint(value: string): string {
   return value.replace(/\/+$/, '');
 }
 
-export function validateConfig(value: unknown): RuntimeConfig {
+export function validateConfig(value: unknown, profile: 'standalone' | 'supervisor' = 'standalone'): RuntimeConfig {
   if (!validate(value)) throw new Error('Configuration has missing, unknown or invalid fields.');
   const config = structuredClone(value);
   endpoint(config.authority.url);
-  endpoint(config.homeAssistant.url);
+  if (!(profile === 'supervisor' && config.homeAssistant.url === 'http://supervisor/core/api')) endpoint(config.homeAssistant.url);
   const unique = (values: string[]) => new Set(values).size === values.length;
   if (!unique(config.principals.map(p => p.id)) || !unique(config.principals.map(p => p.credentialSha256)) ||
       !unique(config.principals.map(p => p.attestationId)) || !unique(config.resources.map(r => r.id)) ||

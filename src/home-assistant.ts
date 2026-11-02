@@ -2,13 +2,15 @@ import { parseJson } from 'genesis-mesh-sdk';
 import type { CompiledAction } from './contracts.js';
 import { endpoint } from './config.js';
 import { AppError } from './errors.js';
+import { canonicalDigest } from 'genesis-mesh-sdk';
+import type { Resource } from './contracts.js';
 
 export interface HomeExecutor {
   preflight(action: CompiledAction): Promise<void>;
   dispatch(action: CompiledAction): Promise<'accepted' | 'outcome_unknown'>;
 }
 
-async function boundedJson(response: Response): Promise<unknown> {
+async function boundedJson(response: Response, limit = 65536): Promise<unknown> {
   const reader = response.body?.getReader();
   if (!reader) throw new Error('Empty HA response.');
   let size = 0;
@@ -18,7 +20,7 @@ async function boundedJson(response: Response): Promise<unknown> {
       const part = await reader.read();
       if (part.done) break;
       size += part.value.byteLength;
-      if (size > 65536) throw new Error('HA response exceeds the adapter limit.');
+      if (size > limit) throw new Error('HA response exceeds the adapter limit.');
       chunks.push(part.value);
     }
     return parseJson(Buffer.concat(chunks).toString('utf8'));
@@ -30,9 +32,27 @@ async function boundedJson(response: Response): Promise<unknown> {
 /** Finite HA REST adapter. No arbitrary services, URLs, templates or command replay. */
 export class HomeAssistant implements HomeExecutor {
   private readonly base: string;
-  constructor(url: string, private readonly token: string, private readonly fetcher = globalThis.fetch) {
-    this.base = endpoint(url);
+  constructor(url: string, private readonly token: string, private readonly fetcher = globalThis.fetch, profile: 'standalone' | 'supervisor' = 'standalone') {
+    this.base = profile === 'supervisor' && url === 'http://supervisor/core/api' ? url : endpoint(url);
     if (!token || /\s/.test(token)) throw new Error('A valid Home Assistant credential file is required.');
+  }
+
+  async catalog(): Promise<Resource[]> {
+    const response = await this.fetcher(this.base + '/states', {
+      headers: { Authorization: `Bearer ${this.token}` }, redirect: 'error', signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) throw new AppError('home_unavailable', 'Home Assistant could not list supported resources.', 503);
+    const result = await boundedJson(response, 2 * 1024 * 1024);
+    if (!Array.isArray(result)) throw new AppError('home_unavailable', 'Home Assistant returned an invalid catalog.', 503);
+    return result.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+      .filter(item => typeof item['entity_id'] === 'string' && /^(light|climate)\.[a-z0-9_]+$/.test(item['entity_id']))
+      .slice(0, 256).map(item => {
+        const entityId = String(item['entity_id']);
+        const attributes = item['attributes'] as Record<string, unknown> | undefined;
+        return { id: `r-${canonicalDigest(entityId).slice(0, 24)}`, entityId,
+          kind: entityId.startsWith('climate.') ? 'climate' : 'light',
+          name: String(attributes?.['friendly_name'] ?? entityId).slice(0, 200) };
+      });
   }
 
   private async get(path: string): Promise<Record<string, unknown>> {

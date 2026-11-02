@@ -8,7 +8,7 @@ those flows. Do not configure it against a real home merely to run the proof.
 
 Node runtime requirements and exact npm dependency pins are in `package.json`;
 `package-lock.json` locks their resolution. The Python authority pin exists
-once in `tests/authority-requirements.txt`. The runner checks the installed
+once in `authority-requirements.txt`. The runner checks the installed
 distribution against that file and uses its public CLI, not a sibling checkout.
 The Python transitive environment is not fully locked by that one core pin.
 
@@ -16,7 +16,7 @@ The Python transitive environment is not fully locked by that one core pin.
 npm ci
 npm test
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r tests/authority-requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r authority-requirements.txt
 npm run test:integration
 ```
 

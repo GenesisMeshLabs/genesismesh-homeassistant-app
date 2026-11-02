@@ -16,6 +16,12 @@ export class HaSimulator {
       if (req.method === 'GET' && req.url === '/api/config') {
         res.end(JSON.stringify({ unit_system: { temperature: this.unit } })); return;
       }
+      if (req.method === 'GET' && req.url === '/api/states') {
+        res.end(JSON.stringify([
+          { entity_id: 'climate.living_room', state: 'heat', attributes: { friendly_name: 'Living-room heating', min_temp: 7, max_temp: 35 } },
+          { entity_id: 'light.desk', state: 'off', attributes: { friendly_name: 'Desk lamp' } },
+        ])); return;
+      }
       const entity = req.url?.match(/^\/api\/states\/(climate\.living_room|light\.desk)$/)?.[1];
       if (req.method === 'GET' && entity) {
         res.end(JSON.stringify({ entity_id: entity, state: this.unavailable ? 'unavailable' : entity.startsWith('light') ? 'on' : 'heat',

@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "rootDir": ".", "lib": ["ES2023", "DOM", "DOM.Iterable"], "useDefineForClassFields": false },
+  "include": ["web/**/*.ts"]
+}

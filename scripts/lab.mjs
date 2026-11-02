@@ -10,8 +10,8 @@ export async function startAuthorityLab() {
   mkdirSync(root, { recursive: true });
   const dir = mkdtempSync(join(root, 'authority-lab-'));
   const python = process.env.GM_TEST_PYTHON || resolve(process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python');
-  if (!existsSync(python)) throw new Error('Install tests/authority-requirements.txt into .venv first.');
-  const required = readFileSync('tests/authority-requirements.txt', 'utf8').trim().split('==')[1];
+  if (!existsSync(python)) throw new Error('Install authority-requirements.txt into .venv first.');
+  const required = readFileSync('authority-requirements.txt', 'utf8').trim().split('==')[1];
   const installed = execFileSync(python, ['-c', 'import importlib.metadata; print(importlib.metadata.version("genesis-mesh"))'], { encoding: 'utf8', windowsHide: true }).trim();
   if (installed !== required) throw new Error('The installed authority does not match the pinned test release.');
   const port = await new Promise((ok, no) => {

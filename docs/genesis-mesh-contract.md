@@ -1,7 +1,7 @@
 # Genesis Mesh contract used by the first proof
 
 The actual SDK dependency pin is in `package.json`; the test authority pin is in
-`tests/authority-requirements.txt`. The implementation consumes released packages.
+`authority-requirements.txt`. The implementation consumes released packages.
 Compatibility claims below refer to the pinned core's classified public surface,
 not to every feature in the longer local roadmap.
 

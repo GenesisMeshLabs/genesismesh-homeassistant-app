@@ -8,18 +8,24 @@
     "node": ">=24.14.0 <25"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.web.json && vite build",
     "test": "npm run build && node --test dist/tests/*.test.js",
     "test:integration": "npm run build && node scripts/integration.mjs",
-    "start": "node dist/src/main.js"
+    "start": "node dist/src/main.js",
+    "test:web": "npm run build && node scripts/test-web.mjs"
   },
   "dependencies": {
     "ajv": "8.20.0",
     "fastify": "5.12.7",
-    "genesis-mesh-sdk": "1.8.1"
+    "genesis-mesh-sdk": "1.8.1",
+    "lit": "3.3.3"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@types/node": "24.19.2",
-    "typescript": "7.0.2"
+    "@types/ws": "8.18.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "ws": "8.22.1"
   }
 }

@@ -7,8 +7,13 @@ import { AppError } from './errors.js';
 import { Executor } from './executor.js';
 import { Journal } from './journal.js';
 
-export function createServer(input: RuntimeConfig, executor: Executor, journal: Journal): FastifyInstance {
-  const config = validateConfig(input);
+export function createServer(input: RuntimeConfig | (() => RuntimeConfig | undefined), executor: Pick<Executor, 'execute'>, journal: Journal, profile: 'standalone' | 'supervisor' = 'standalone'): FastifyInstance {
+  const configFor = () => {
+    const value = typeof input === 'function' ? input() : input;
+    if (!value) throw new AppError('setup_required', 'The home has not finished access setup.', 409);
+    return validateConfig(value, profile);
+  };
+  if (typeof input !== 'function') configFor();
   const app = Fastify({
     logger: false, bodyLimit: 4096, requestTimeout: 10000,
     ajv: { customOptions: { coerceTypes: false, removeAdditional: false, useDefaults: false } },
@@ -18,7 +23,7 @@ export function createServer(input: RuntimeConfig, executor: Executor, journal: 
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body, done) => {
     try { done(null, parseJson(String(body))); } catch { done(new AppError('invalid_json', 'The request body is not valid strict JSON.')); }
   });
-  const principal = (request: FastifyRequest): Principal => authenticate(request.headers.authorization, config.principals);
+  const principal = (request: FastifyRequest): Principal => authenticate(request.headers.authorization, configFor().principals);
   app.addHook('onRequest', async request => {
     if (request.headers.origin) throw new AppError('browser_origin_not_supported', 'This preview API accepts authenticated service clients only.', 403);
     if (request.url !== '/health') principal(request);
@@ -37,6 +42,7 @@ export function createServer(input: RuntimeConfig, executor: Executor, journal: 
   });
   app.get('/health', async () => ({ service: 'genesismesh-homeassistant-app', status: 'running', profile: 'p0-service-client-preview' }));
   app.get('/v1/resources', async request => {
+    const config = configFor();
     const who = principal(request);
     return { homeId: config.homeId, participant: { id: who.id, kind: who.kind, assurance: 'app-bearer-possession' },
       resources: config.resources.filter(r => who.resources.includes(r.id)).map(r => ({

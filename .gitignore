@@ -6,6 +6,7 @@
 !/.env.example
 node_modules/
 dist/
+web-dist/
 coverage/
 .venv/
 __pycache__/

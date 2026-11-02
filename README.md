@@ -3,9 +3,10 @@
 **Delegate useful control of your home to people, AI agents, machines and
 devices, with limits you own and decisions you can verify.**
 
-Status: **development proof**. A runnable authenticated executor and a disposable
-real-authority integration lab are implemented. This is not yet an installable
-Home Assistant OS app, native integration or finished household interface.
+Status: **experimental preview**. The backend and HA ingress interface are
+implemented, including automatic local-authority setup, scoped access and
+activity. Software tests use a real Genesis Mesh authority and simulated HA
+devices. HA OS installation and physical-device acceptance remain separate gates.
 
 Home Assistant connects devices, runs automations and supplies the everyday
 home interface. This project adds a governed path for delegated requests:
@@ -32,10 +33,12 @@ climate setpoints, with signed authority decisions, exact request binding,
 durable request deduplication and signed execution evidence. Requests that time
 out after dispatch remain uncertain and are never automatically repeated.
 
-Authentication currently uses separate app-issued bearer credentials mapped to
-authority attestations. Native Mesh enrollment, HA-user/ingress authentication,
-hardware identity, visual access editing, approvals and offline grants are
-planned. See [the implementation boundary](docs/architecture.md).
+Service clients use separate app-issued bearer credentials mapped to authority
+attestations. The ingress interface verifies a fresh native HA administrator
+role for management and native-user requests. Native Mesh enrollment, hardware
+identity, approvals and offline grants remain planned. See
+[the managed app profile](docs/managed-app.md) and
+[the backend boundary](docs/architecture.md).
 
 ## Run the proof
 
@@ -47,7 +50,7 @@ runtime; this is one reason the current build is a development preview.
 npm ci
 npm test
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r tests/authority-requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r authority-requirements.txt
 npm run test:integration
 ```
 
