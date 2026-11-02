@@ -6,6 +6,7 @@ import { authenticate } from './identity.js';
 import { AppError } from './errors.js';
 import { Executor } from './executor.js';
 import { Journal } from './journal.js';
+import { definitions, legacyCapabilities } from './device-actions.js';
 
 export function createServer(input: RuntimeConfig | (() => RuntimeConfig | undefined), executor: Pick<Executor, 'execute'>, journal: Journal, profile: 'standalone' | 'supervisor' = 'standalone'): FastifyInstance {
   const configFor = () => {
@@ -47,7 +48,8 @@ export function createServer(input: RuntimeConfig | (() => RuntimeConfig | undef
     return { homeId: config.homeId, participant: { id: who.id, kind: who.kind, assurance: 'app-bearer-possession' },
       resources: config.resources.filter(r => who.resources.includes(r.id)).map(r => ({
         id: r.id, name: r.name, kind: r.kind,
-        capability: r.kind === 'climate' ? 'ha.climate.set_temperature' : 'ha.light.set',
+        capabilities: definitions.filter(d => ((d.kinds as readonly string[]).includes(r.kind) || (d.kinds as readonly string[]).includes('*')) &&
+          (who.capabilities ?? legacyCapabilities).includes(d.capability)).map(d => d.capability),
       })) };
   });
   app.post<{ Body: ActionIntent }>('/v1/actions', { schema: { body: actionSchema } }, async (request, reply) => {

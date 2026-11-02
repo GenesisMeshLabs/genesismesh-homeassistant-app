@@ -92,7 +92,7 @@ export class Journal {
       if (op.commandState === 'dispatching') this.patch(op.id, {
         commandState: 'outcome_unknown', evidenceState: 'needs_attention', reason: 'restart_during_dispatch',
       });
-      if ((op.commandState === 'accepted' || op.commandState === 'outcome_unknown') && !op.evidenceId) {
+      if ((op.commandState === 'accepted' || op.commandState === 'observed' || op.commandState === 'outcome_unknown') && !op.evidenceId) {
         this.patch(op.id, { evidenceState: 'needs_attention' });
       }
     }
@@ -100,6 +100,11 @@ export class Journal {
 
   all(): Operation[] {
     return this.db.prepare('SELECT data FROM operations ORDER BY rowid').all().map(row => JSON.parse(String(row['data'])) as Operation);
+  }
+
+  latest(limit: number): Operation[] {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid activity limit.');
+    return this.db.prepare('SELECT data FROM operations ORDER BY rowid DESC LIMIT ?').all(limit).map(row => JSON.parse(String(row['data'])) as Operation);
   }
 
   get(id: string): Operation | undefined {
@@ -118,9 +123,9 @@ export class Journal {
       if (existing.digest !== action.digest) throw new AppError('request_conflict', 'That request ID already names a different action.', 409);
       return existing;
     }
-    if (this.all().some(op => op.resourceId === action.resource.id &&
-        (op.commandState === 'outcome_unknown' || op.commandState === 'dispatching' ||
-          op.evidenceState === 'needs_attention'))) {
+    if (action.capability !== 'ha.entity.read' && this.db.prepare(`SELECT 1 FROM operations WHERE resource=? AND
+        json_extract(data, '$.capability') != 'ha.entity.read' AND
+        (json_extract(data, '$.commandState') IN ('outcome_unknown', 'dispatching') OR json_extract(data, '$.evidenceState')='needs_attention') LIMIT 1`).get(action.resource.id)) {
       throw new AppError('resource_needs_reconciliation', 'An earlier action on this resource needs review before another can be sent.', 409);
     }
     const now = new Date().toISOString();
@@ -135,7 +140,7 @@ export class Journal {
     return op;
   }
 
-  patch(id: string, changes: Partial<Pick<Operation, 'commandState' | 'evidenceState' | 'decisionId' | 'evidenceId' | 'reason' | 'policyFailures'>>): Operation {
+  patch(id: string, changes: Partial<Pick<Operation, 'commandState' | 'evidenceState' | 'decisionId' | 'evidenceId' | 'reason' | 'policyFailures' | 'observation'>>): Operation {
     const op = this.get(id);
     if (!op) throw new Error('Operation does not exist.');
     Object.assign(op, changes, { updatedAt: new Date().toISOString() });

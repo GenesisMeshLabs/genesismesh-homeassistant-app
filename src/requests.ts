@@ -1,8 +1,14 @@
 import { canonicalDigest } from 'genesis-mesh-sdk';
 import type { ActionIntent, CompiledAction, Principal, RuntimeConfig } from './contracts.js';
 import { AppError } from './errors.js';
+import { Ajv } from 'ajv';
+import { actionSchema } from './contracts.js';
+import { commandFor, legacyCapabilities } from './device-actions.js';
+
+const validIntent = new Ajv({ strict: true }).compile(actionSchema);
 
 export function compileAction(config: RuntimeConfig, principal: Principal, intent: ActionIntent): CompiledAction {
+  if (!validIntent(intent)) throw new AppError('invalid_request', 'Choose a supported action and its exact parameters.');
   const expiry = Date.parse(intent.expiresAt);
   if (!Number.isFinite(expiry) || expiry <= Date.now() || expiry > Date.now() + 120_000) {
     throw new AppError('intent_expired', 'Requests must expire within the next two minutes.');
@@ -11,16 +17,12 @@ export function compileAction(config: RuntimeConfig, principal: Principal, inten
   if (!resource || !principal.resources.includes(resource.id)) {
     throw new AppError('resource_not_shared', 'This resource is not shared with this participant.', 403);
   }
-  const climate = intent.capability === 'ha.climate.set_temperature';
-  if ((climate && resource.kind !== 'climate') || (!climate && resource.kind !== 'light')) {
-    throw new AppError('unsupported_action', 'This action is not supported for the selected resource.');
-  }
-  const parameters: Record<string, string | number> = climate
-    ? { temperature_c: intent.parameters.temperatureC }
-    : { state: intent.parameters.state };
-  const command: CompiledAction['command'] = climate
-    ? { domain: 'climate', service: 'set_temperature', data: { entity_id: resource.entityId, temperature: intent.parameters.temperatureC } }
-    : { domain: 'light', service: intent.parameters.state === 'on' ? 'turn_on' : 'turn_off', data: { entity_id: resource.entityId } };
+  if (!(principal.capabilities ?? legacyCapabilities).includes(intent.capability)) throw new AppError('operation_not_shared', 'This operation was not granted to this participant.', 403);
+  const parameters: Record<string, string | number> = intent.capability === 'ha.climate.set_temperature'
+    ? { temperature_c: intent.parameters['temperatureC']! } : { ...intent.parameters };
+  let command: CompiledAction['command'];
+  try { command = commandFor(resource.kind, intent.capability, resource.entityId, intent.parameters); }
+  catch { throw new AppError('unsupported_action', 'This action is not supported for the selected resource.'); }
   const body = {
     version: 1, adapter: 'ha-finite-v1', home_id: config.homeId, requester: principal.id, kind: principal.kind,
     request_id: intent.requestId, resource_id: resource.id, entity_id: resource.entityId,

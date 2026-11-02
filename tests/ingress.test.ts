@@ -8,6 +8,7 @@ test('ingress rejects forwarded-header spoofing, unknown users and missing CSRF 
   let changes = 0;
   const app = createIngress({ status: () => ({ ready: false }) as never, catalog: async () => [],
     configure: async () => { changes++; }, addMember: async () => { changes++; return {} as never; },
+    updateMember: async () => { changes++; return {} as never; },
     revoke: async () => { changes++; }, act: async () => { changes++; return {} as never; } },
   { requireAdministrator: async id => { if (id !== 'owner') throw new AppError('administrator_required', 'Admin required', 403); return { id, name: 'Owner' }; } }, resolve('web-dist'));
   try {

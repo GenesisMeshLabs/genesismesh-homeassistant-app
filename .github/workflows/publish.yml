@@ -32,7 +32,9 @@ jobs:
         if: always()
         with:
           name: browser-evidence
-          path: temp/ha-app-*.png
+          path: |
+            temp/ha-app-*.png
+            temp/ha-devices-*.png
           if-no-files-found: ignore
           retention-days: 14
   native-ha:

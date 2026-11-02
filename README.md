@@ -27,11 +27,17 @@ and the device being controlled are separate concepts.
 - Extend toward bounded offline operation and scoped cooperation between
   independently operated homes.
 
-The first backend proof uses the same enforcement path for a person, agent,
-machine, device or service. It supports explicit light on/off and Celsius
-climate setpoints, with signed authority decisions, exact request binding,
-durable request deduplication and signed execution evidence. Requests that time
-out after dispatch remain uncertain and are never automatically repeated.
+The app uses the same enforcement path for a person, agent, machine, device or
+service. Its whole-home entity inventory offers governed observations and
+finite controls for lighting, switches, fans, media, blinds, climate,
+humidifiers, vacuums and numeric/selection helpers. Each profile chooses
+resources and permitted operations, with signed decisions, exact request
+binding, durable deduplication and execution evidence. Requests that time out
+after dispatch remain uncertain and are never automatically repeated.
+
+Read-only and unsupported entity types stay visible with explanations rather
+than disappearing from the home. Discovery does not enroll a physical device as
+a Mesh node. See [device coverage and permissions](docs/device-coverage.md).
 
 Service clients use separate app-issued bearer credentials mapped to authority
 attestations. The ingress interface verifies a fresh native HA administrator
@@ -112,12 +118,9 @@ instructions remain in ignored planning files.
 
 ## Delivery direction
 
-The first implementation is one TypeScript/Fastify service using the released
-Genesis Mesh SDK and a SQLite journal/outbox. Next are the HA OS ingress and
-privilege spike, then a small interface and a thin Python integration where
-native LLM tools, automations or identity propagation require it. A standalone
-container profile is also planned. No Docker/HA packaging acceptance is claimed
-by the backend proof.
-
-No live Home Assistant instance is changed by the development proof, and no
-supported application release has been published.
+The app is a TypeScript/Fastify service with an HA administrator interface,
+released Genesis Mesh SDK, managed Python authority and SQLite journal/outbox.
+The standalone service profile remains available. Native LLM tool identity,
+remote participant onboarding, approvals, recovery and federation remain next
+steps. Tests do not operate an existing home. Published releases are
+experimental; installation and physical acceptance are reported separately.

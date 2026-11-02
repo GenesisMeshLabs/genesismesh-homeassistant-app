@@ -77,6 +77,7 @@ export class FakeHome implements HomeExecutor {
     this.checked++;
     if (this.preflightError) throw this.preflightError;
   }
+  async observe() { return { state: '21', attributes: { unit_of_measurement: '°C' }, observedAt: new Date().toISOString() }; }
   async dispatch(action: CompiledAction) { this.sent.push(action); return this.outcome; }
 }
 

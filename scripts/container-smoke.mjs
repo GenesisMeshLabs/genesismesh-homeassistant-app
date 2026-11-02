@@ -20,6 +20,7 @@ if (process.argv[2] === 'serve') {
     if (req.url === '/fixture/promote') { administrator = true; return send({}); }
     if (req.headers.authorization !== `Bearer ${token}`) return send({}, 401);
     if (req.url === '/core/api/states') return send(entities);
+    if (req.url === '/core/api/services') return send([{ domain: 'climate', services: { set_temperature: {} } }, { domain: 'light', services: { turn_on: {}, turn_off: {} } }]);
     if (req.url === '/core/api/config') return send({ unit_system: { temperature: '°C' } });
     const entity = entities.find(e => req.url === `/core/api/states/${e.entity_id}`);
     if (entity) return send(entity);
@@ -67,7 +68,7 @@ if (process.argv[2] === 'serve') {
     assert.equal(catalog.length, 2);
     assert.equal((await ui('setup', { resources: catalog.map(r => r.id), minimum: 19, maximum: 23 })).status, 200);
     const resourceId = catalog.find(r => r.kind === 'climate').id;
-    const member = (await ui('access', { name: 'Container machine', kind: 'machine', resources: [resourceId], hours: 1 })).body;
+    const member = (await ui('access', { name: 'Container machine', kind: 'machine', resources: [resourceId], hours: 1, capabilities: ['ha.climate.set_temperature'] })).body;
     assert.ok(member.credential);
     assert.equal((await action(member.credential, resourceId)).status, 200);
     const count = await calls();

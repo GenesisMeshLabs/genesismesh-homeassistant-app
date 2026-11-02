@@ -1,5 +1,5 @@
-export const capabilities = ['ha.climate.set_temperature', 'ha.light.set'] as const;
-export type Capability = typeof capabilities[number];
+import { capabilities, type Capability } from './device-actions.js';
+export { capabilities, type Capability } from './device-actions.js';
 export type ParticipantKind = 'person' | 'agent' | 'machine' | 'device' | 'service';
 
 export interface Principal {
@@ -10,12 +10,13 @@ export interface Principal {
   attestationId: string;
   resources: string[];
   enabled: boolean;
+  capabilities?: Capability[];
 }
 export interface Resource {
   id: string;
   name: string;
   entityId: string;
-  kind: 'climate' | 'light';
+  kind: string;
 }
 export interface PolicyRef { id: string; version: number; digest: string }
 export interface RuntimeConfig {
@@ -39,10 +40,8 @@ export interface RuntimeConfig {
 }
 
 interface IntentBase { requestId: string; resourceId: string; expiresAt: string }
-export type ActionIntent = IntentBase & (
-  | { capability: 'ha.climate.set_temperature'; parameters: { temperatureC: number } }
-  | { capability: 'ha.light.set'; parameters: { state: 'on' | 'off' } }
-);
+export interface ActionIntent extends IntentBase { capability: Capability; parameters: Record<string, string | number> }
+export interface Observation { state: string; attributes: Record<string, string | number | boolean>; observedAt: string }
 export interface CompiledAction {
   requestId: string;
   subjectId: string;
@@ -52,10 +51,10 @@ export interface CompiledAction {
   capability: Capability;
   expiresAt: string;
   parameters: Record<string, string | number>;
-  command: { domain: 'climate' | 'light'; service: string; data: Record<string, string | number> };
+  command: { domain: string; service: string; data: Record<string, string | number | boolean> };
   digest: string;
 }
-export type CommandState = 'reserved' | 'denied' | 'blocked' | 'dispatching' | 'accepted' | 'outcome_unknown';
+export type CommandState = 'reserved' | 'denied' | 'blocked' | 'dispatching' | 'accepted' | 'observed' | 'outcome_unknown';
 export type EvidenceState = 'none' | 'pending' | 'acknowledged' | 'needs_attention';
 export interface Operation {
   id: string;
@@ -73,6 +72,7 @@ export interface Operation {
   reason: string;
   createdAt: string;
   updatedAt: string;
+  observation?: Observation;
 }
 
 const id = { type: 'string', pattern: '^[a-z0-9][a-z0-9_.:-]{0,79}$' } as const;
@@ -89,7 +89,7 @@ export const configSchema = object({
     url: path, publicKey: key, audience: key, sovereignId: text,
     operatorKeyId: text, operatorKeyFile: path, executorId: text,
     executorKeyId: text, executorKeyFile: path,
-    expectations: { type: 'array', minItems: 1, maxItems: 2, items: object({
+    expectations: { type: 'array', minItems: 1, maxItems: 64, items: object({
       capability: { enum: capabilities },
       policies: { type: 'array', minItems: 1, maxItems: 16, items: object({
         id: text, version: { type: 'integer', minimum: 1 }, digest,
@@ -101,10 +101,11 @@ export const configSchema = object({
     id, kind: { enum: ['person', 'agent', 'machine', 'device', 'service'] },
     credentialSha256: digest, expiresAt: date, attestationId: text,
     resources: { type: 'array', uniqueItems: true, maxItems: 256, items: id }, enabled: { type: 'boolean' },
+    capabilities: { type: 'array', uniqueItems: true, minItems: 1, maxItems: 64, items: { enum: capabilities } },
   }, ['id', 'kind', 'credentialSha256', 'expiresAt', 'attestationId', 'resources', 'enabled']) },
   resources: { type: 'array', minItems: 1, maxItems: 256, items: object({
-    id, name: text, entityId: { type: 'string', pattern: '^(climate|light)\\.[a-z0-9_]+$' },
-    kind: { enum: ['climate', 'light'] },
+    id, name: text, entityId: { type: 'string', pattern: '^[a-z_][a-z0-9_]*\\.[a-z0-9_]+$' },
+    kind: { type: 'string', pattern: '^[a-z_][a-z0-9_]*$' },
   }, ['id', 'name', 'entityId', 'kind']) },
 }, ['homeId', 'dataDir', 'authority', 'homeAssistant', 'principals', 'resources']);
 
@@ -113,11 +114,6 @@ const base = {
   resourceId: id, expiresAt: date,
 };
 const required = ['requestId', 'resourceId', 'expiresAt', 'capability', 'parameters'];
-export const actionSchema = { oneOf: [
-  object({ ...base, capability: { const: 'ha.climate.set_temperature' }, parameters: object({
-    temperatureC: { type: 'number', minimum: -50, maximum: 60 },
-  }, ['temperatureC']) }, required),
-  object({ ...base, capability: { const: 'ha.light.set' }, parameters: object({
-    state: { enum: ['on', 'off'] },
-  }, ['state']) }, required),
-] };
+import { operationParameterSchema } from './device-actions.js';
+export const actionSchema = { oneOf: capabilities.map(capability =>
+  object({ ...base, capability: { const: capability }, parameters: operationParameterSchema(capability) }, required)) };

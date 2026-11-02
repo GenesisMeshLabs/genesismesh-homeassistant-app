@@ -2,12 +2,14 @@ import { parseJson } from 'genesis-mesh-sdk';
 import type { CompiledAction } from './contracts.js';
 import { endpoint } from './config.js';
 import { AppError } from './errors.js';
-import { canonicalDigest } from 'genesis-mesh-sdk';
-import type { Resource } from './contracts.js';
+import type { Observation } from './contracts.js';
+import { inventory, observeState, serviceSet, type InventoryResource } from './inventory.js';
+import { operationOptions } from './device-actions.js';
 
 export interface HomeExecutor {
   preflight(action: CompiledAction): Promise<void>;
   dispatch(action: CompiledAction): Promise<'accepted' | 'outcome_unknown'>;
+  observe?(action: CompiledAction): Promise<Observation>;
 }
 
 async function boundedJson(response: Response, limit = 65536): Promise<unknown> {
@@ -37,22 +39,21 @@ export class HomeAssistant implements HomeExecutor {
     if (!token || /\s/.test(token)) throw new Error('A valid Home Assistant credential file is required.');
   }
 
-  async catalog(): Promise<Resource[]> {
+  private async services(): Promise<Set<string>> {
+    const response = await this.fetcher(this.base + '/services', { headers: { Authorization: `Bearer ${this.token}` }, redirect: 'error', signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw new AppError('home_unavailable', 'Home Assistant could not confirm available device controls.', 503);
+    return serviceSet(await boundedJson(response, 2 * 1024 * 1024));
+  }
+
+  async catalog(): Promise<InventoryResource[]> {
     const response = await this.fetcher(this.base + '/states', {
       headers: { Authorization: `Bearer ${this.token}` }, redirect: 'error', signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) throw new AppError('home_unavailable', 'Home Assistant could not list supported resources.', 503);
-    const result = await boundedJson(response, 2 * 1024 * 1024);
-    if (!Array.isArray(result)) throw new AppError('home_unavailable', 'Home Assistant returned an invalid catalog.', 503);
-    return result.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
-      .filter(item => typeof item['entity_id'] === 'string' && /^(light|climate)\.[a-z0-9_]+$/.test(item['entity_id']))
-      .slice(0, 256).map(item => {
-        const entityId = String(item['entity_id']);
-        const attributes = item['attributes'] as Record<string, unknown> | undefined;
-        return { id: `r-${canonicalDigest(entityId).slice(0, 24)}`, entityId,
-          kind: entityId.startsWith('climate.') ? 'climate' : 'light',
-          name: String(attributes?.['friendly_name'] ?? entityId).slice(0, 200) };
-      });
+    const result = await boundedJson(response, 16 * 1024 * 1024);
+    // Inventory still explains read-only coverage when the action catalog is unavailable.
+    const services = await this.services().catch(() => new Set<string>());
+    return inventory(result, services);
   }
 
   private async get(path: string): Promise<Record<string, unknown>> {
@@ -67,10 +68,25 @@ export class HomeAssistant implements HomeExecutor {
 
   async preflight(action: CompiledAction): Promise<void> {
     try {
+      if (action.capability === 'ha.entity.read') return;
       const state = await this.get(`/states/${encodeURIComponent(action.resource.entityId)}`);
       if (state['entity_id'] !== action.resource.entityId || typeof state['state'] !== 'string' ||
           ['unknown', 'unavailable'].includes(state['state'])) throw new Error('Target is unavailable.');
-      if (action.command.domain === 'climate') {
+      const attrs = state['attributes'] && typeof state['attributes'] === 'object' && !Array.isArray(state['attributes']) ? state['attributes'] as Record<string, unknown> : {};
+      const operation = operationOptions(action.resource.kind, attrs, await this.services()).find(op => op.capability === action.capability);
+      if (!operation) throw new AppError('unsupported_action', 'This device does not currently advertise the requested control. No command was sent.');
+      for (const parameter of operation.parameters) {
+        const key = parameter.name === 'temperatureC' ? 'temperature_c' : parameter.name;
+        const value = action.parameters[key];
+        if (parameter.type === 'select' && !parameter.options?.includes(String(value))) throw new AppError('unsupported_option', 'This device no longer supports the selected option.');
+        if (parameter.type === 'number' && (typeof value !== 'number' || !Number.isFinite(value) || value < parameter.minimum! || value > parameter.maximum!)) throw new AppError('unsupported_range', 'The requested value is outside the device-supported range.');
+        const nativeStep = action.capability === 'ha.helper.number' ? attrs['step'] : action.capability === 'ha.fan.speed' ? attrs['percentage_step'] : undefined;
+        if (typeof value === 'number' && typeof nativeStep === 'number' && Number.isFinite(nativeStep) && nativeStep > 0 &&
+            value !== parameter.maximum && Math.abs((value - (parameter.minimum ?? 0)) / nativeStep - Math.round((value - (parameter.minimum ?? 0)) / nativeStep)) > 1e-6) {
+          throw new AppError('unsupported_step', 'Choose a value aligned with the device-supported step.');
+        }
+      }
+      if (action.capability === 'ha.climate.set_temperature') {
         const config = await this.get('/config');
         const unit = config['unit_system'] as Record<string, unknown> | undefined;
         if (unit?.['temperature'] !== '°C') throw new AppError('unsupported_unit', 'This preview supports Celsius Home Assistant installations only.');
@@ -88,7 +104,12 @@ export class HomeAssistant implements HomeExecutor {
     }
   }
 
+  async observe(action: CompiledAction): Promise<Observation> {
+    return observeState(action.resource, await this.get(`/states/${encodeURIComponent(action.resource.entityId)}`));
+  }
+
   async dispatch(action: CompiledAction): Promise<'accepted' | 'outcome_unknown'> {
+    if (action.capability === 'ha.entity.read') throw new AppError('unsupported_action', 'Status reads cannot dispatch device commands.');
     try {
       const response = await this.fetcher(`${this.base}/services/${action.command.domain}/${action.command.service}`, {
         method: 'POST', headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },

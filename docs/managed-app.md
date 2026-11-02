@@ -5,12 +5,13 @@ policies, participant scopes, executor journal and evidence outbox under
 `/data/runtime`. Initial setup does not need a JSON file or an operator key
 copied from another server. Normal app updates reuse this state.
 
-Open the Web UI through HA ingress with an administrator account. Choose lights
-and Celsius climate entities, set heating bounds, then create separate limited
-access profiles. Access profiles have selected resources and an expiry. The
+Open the Web UI through HA ingress with an administrator account. Browse the
+whole-home inventory, choose resources, then create separate limited access
+profiles. Profiles select both resources and operations, with an expiry. The
 credential is shown once. Revocation stops subsequent requests; it cannot undo
 a command already sent. Activity distinguishes policy refusal, pre-dispatch
-failure, accepted-but-unconfirmed commands, and uncertain results.
+failure, timestamped observations, accepted-but-unconfirmed commands, and
+uncertain results. See [current coverage](device-coverage.md).
 
 ## Privilege boundary
 

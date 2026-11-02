@@ -1,9 +1,10 @@
 // Disposable real HA Core, not HA OS/Supervisor or physical-device acceptance.
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { SupervisorRoles } from '../dist/src/ha-identity.js';
 import { HomeAssistant } from '../dist/src/home-assistant.js';
+import { compileAction } from '../dist/src/requests.js';
 const base = 'http://127.0.0.1:8123';
 let ready = false;
 for (let i = 0; i < 240; i++) {
@@ -55,5 +56,20 @@ try {
   assert.equal(state.status, 201);
   const adapter = new HomeAssistant(base + '/api', token);
   assert.ok((await adapter.catalog()).some(r => r.name === 'Native fixture light' && r.kind === 'light'));
+  const catalog = await adapter.catalog();
+  for (const [kind, capability, parameters, expected] of [
+    ['input_boolean', 'ha.helper.boolean', { state: 'on' }, 'on'],
+    ['input_number', 'ha.helper.number', { value: 7 }, '7.0'],
+    ['input_select', 'ha.helper.select', { option: 'Normal' }, 'Normal'],
+  ]) {
+    const resource = catalog.find(r => r.entityId === `${kind}.mesh_fixture`); assert.ok(resource);
+    assert.ok(resource.operations.some(op => op.capability === capability));
+    const participant = { id: 'fixture-owner', kind: 'person', resources: [resource.id], capabilities: [capability], enabled: true, expiresAt: new Date(Date.now() + 60000).toISOString() };
+    const compiled = compileAction({ homeId: 'disposable', resources: [resource] }, participant, { requestId: randomUUID(), resourceId: resource.id,
+      capability, parameters, expiresAt: new Date(Date.now() + 60000).toISOString() });
+    await adapter.preflight(compiled); assert.equal(await adapter.dispatch(compiled), 'accepted');
+    const observation = await adapter.observe(compiled); assert.equal(observation.state, expected);
+  }
+  console.log('Real HA Core: finite on/off, numeric and selection helpers passed against disposable software entities; no physical device dispatch.');
   console.log('Real HA Core 2026.10.4: native auth protocol, owner/admin/regular/inactive roles, fresh role changes and REST catalog passed. No physical dispatch.');
 } finally { socket.close(); }

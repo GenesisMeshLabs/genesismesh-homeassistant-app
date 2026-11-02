@@ -16,6 +16,22 @@ auth:
 config:
 onboarding:
 person:
+input_boolean:
+  mesh_fixture:
+    name: Disposable native switch
+    initial: false
+input_number:
+  mesh_fixture:
+    name: Disposable native number
+    min: 0
+    max: 20
+    step: 1
+    initial: 5
+input_select:
+  mesh_fixture:
+    name: Disposable native choice
+    options: [Quiet, Normal]
+    initial: Quiet
 CONFIG
 image="$(cat tests/ha-core-image.txt)"
 docker run -d --name "$name" -p 127.0.0.1:8123:8123 -v "$fixture:/config" "$image"

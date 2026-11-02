@@ -1,8 +1,9 @@
-# Running and inspecting the first proof
+# Development and service clients
 
-This is a developer-facing backend milestone. The intended product has visual
-resource selection and participant/access cards; this preview does not yet offer
-those flows. Do not configure it against a real home merely to run the proof.
+The managed app offers visual resource selection and access profiles; see
+[the managed profile](managed-app.md). This document covers development and
+service clients. Tests use a disposable authority and simulated devices rather
+than an existing home.
 
 ## Requirements and checks
 
@@ -83,7 +84,9 @@ An operator must provision:
   not accepted by this standalone profile; ingress requires separate testing.
 - `principals`: unique ID, kind, random bearer digest, credential expiry,
   corresponding attestation ID, explicit resource IDs and `enabled` flag.
-- `resources`: finite ID/name, HA entity ID and kind (`light` or `climate`).
+- `resources`: finite ID/name, HA entity ID and its exact domain as `kind`.
+  Profiles also store explicit `capabilities`; a legacy missing field retains
+  only original light/setpoint operations. See [coverage](device-coverage.md).
 
 Dates use UTC ISO strings with millisecond precision. Private paths resolve
 relative to the config file. Core key files may contain their standard comment
@@ -123,7 +126,8 @@ a new intent blindly. Light requests use `ha.light.set` and
 
 The response separates `commandState` and `evidenceState`, carries decision/
 evidence IDs and lists failed policy gate names on a signed refusal. HTTP 200
-means HA accepted a command, not that hardware completed it. HTTP 202 means an
+means either an `observed` snapshot or that HA accepted a command; inspect
+`commandState`. It does not establish a physical outcome. HTTP 202 means an
 unknown command outcome. HTTP 403 is used for signed denial or refused local
 scope/auth; inspect the response type. HTTP 503 is a blocked pre-dispatch or
 executor failure. HTTP 409 means intent conflict or target reconciliation is

@@ -4,6 +4,7 @@ import type { HomeExecutor } from './home-assistant.js';
 import { AppError } from './errors.js';
 import { Journal } from './journal.js';
 import { compileAction } from './requests.js';
+import { canonicalDigest } from 'genesis-mesh-sdk';
 
 /** Serialize both dispatches and evidence chains; no uncertain operation is automatically retried. */
 export class Executor {
@@ -38,6 +39,15 @@ export class Executor {
           await verified.beforeDispatch();
           if (Date.now() >= Date.parse(action.expiresAt) || Date.now() >= Date.parse(principal.expiresAt)) {
             throw new AppError('authorization_stale', 'The request expired before dispatch. No action was sent.', 403);
+          }
+          if (action.capability === 'ha.entity.read') {
+            if (!this.home.observe) throw new AppError('observation_unavailable', 'Status reads are unavailable on this adapter.', 503);
+            const observation = await this.home.observe(action);
+            this.journal.patch(operation.id, { commandState: 'observed', observation, reason: 'status_observed' });
+            return { value: 'observed' as const, outcome: 'success', outcome_detail: 'Selected Home Assistant state observed; no device command was sent.',
+              execution_parameters: { subject_id: principal.id, participant_kind: principal.kind, action_digest: action.digest,
+                command_status: 'observed', entity_id: action.resource.entityId, adapter: 'ha-finite-v1', rotatable: false,
+                observation_digest: canonicalDigest(observation) } };
           }
           this.journal.patch(operation.id, { commandState: 'dispatching', evidenceState: 'pending', reason: 'waiting_for_home' });
           const outcome = await this.home.dispatch(action);

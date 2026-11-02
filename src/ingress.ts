@@ -2,12 +2,13 @@ import Fastify from 'fastify';
 import { readFileSync } from 'node:fs';
 import { resolve, relative, extname, sep } from 'node:path';
 import { parseJson } from 'genesis-mesh-sdk';
-import { actionSchema, type ActionIntent, type ParticipantKind } from './contracts.js';
+import { actionSchema, type ActionIntent, type ParticipantKind, capabilities, type Capability } from './contracts.js';
+import { inventorySummary } from './inventory.js';
 import { CsrfSessions, ingressUser, type HaRoles } from './ha-identity.js';
 import { ManagedHome } from './managed-home.js';
 import { AppError } from './errors.js';
 
-export function createIngress(home: Pick<ManagedHome, 'status' | 'catalog' | 'configure' | 'addMember' | 'revoke' | 'act'>, roles: HaRoles, webRoot: string, healthy = () => true) {
+export function createIngress(home: Pick<ManagedHome, 'status' | 'catalog' | 'configure' | 'addMember' | 'updateMember' | 'revoke' | 'act'>, roles: HaRoles, webRoot: string, healthy = () => true) {
   const app = Fastify({ logger: false, bodyLimit: 16384, trustProxy: false,
     ajv: { customOptions: { coerceTypes: false, removeAdditional: false, useDefaults: false } } });
   const sessions = new CsrfSessions();
@@ -40,16 +41,20 @@ export function createIngress(home: Pick<ManagedHome, 'status' | 'catalog' | 'co
     const user = await human(request); return { name: user.name, csrf: sessions.issue(user.id) };
   });
   app.get('/api/status', async request => { await human(request); return home.status(); });
-  app.get('/api/catalog', async request => { await human(request); return { resources: await home.catalog() }; });
-  const ids = { type: 'array', minItems: 1, maxItems: 128, uniqueItems: true, items: { type: 'string', pattern: '^r-[a-f0-9]{24}$' } };
+  app.get('/api/catalog', async request => { await human(request); const resources = await home.catalog(); return { resources, summary: inventorySummary(resources) }; });
+  const ids = { type: 'array', minItems: 1, maxItems: 256, uniqueItems: true, items: { type: 'string', pattern: '^r-[a-f0-9]{24}$' } };
+  const operationScopes = { type: 'array', minItems: 1, maxItems: 64, uniqueItems: true, items: { enum: capabilities } };
   const object = (properties: object, required: string[]) => ({ type: 'object', additionalProperties: false, properties, required });
   app.post<{ Body: { resources: string[]; minimum: number; maximum: number } }>('/api/setup', {
     schema: { body: object({ resources: ids, minimum: { type: 'number', minimum: 10, maximum: 35 }, maximum: { type: 'number', minimum: 10, maximum: 35 } }, ['resources', 'minimum', 'maximum']) },
   }, async request => { await home.configure(await human(request), request.body.resources, request.body.minimum, request.body.maximum); return home.status(); });
-  app.post<{ Body: { name: string; kind: ParticipantKind; resources: string[]; hours: number } }>('/api/access', {
+  app.post<{ Body: { name: string; kind: ParticipantKind; resources: string[]; hours: number; capabilities: Capability[] } }>('/api/access', {
     schema: { body: object({ name: { type: 'string', minLength: 1, maxLength: 80 }, kind: { enum: ['person', 'agent', 'machine', 'device', 'service'] },
-      resources: ids, hours: { type: 'integer', minimum: 1, maximum: 720 } }, ['name', 'kind', 'resources', 'hours']) },
-  }, async request => { await human(request); return home.addMember(request.body.name, request.body.kind, request.body.resources, request.body.hours); });
+      resources: ids, capabilities: operationScopes, hours: { type: 'integer', minimum: 1, maximum: 720 } }, ['name', 'kind', 'resources', 'hours', 'capabilities']) },
+  }, async request => { await human(request); return home.addMember(request.body.name, request.body.kind, request.body.resources, request.body.hours, request.body.capabilities); });
+  app.post<{ Body: { id: string; resources: string[]; hours: number; capabilities: Capability[] } }>('/api/access/update', {
+    schema: { body: object({ id: { type: 'string', minLength: 1, maxLength: 80 }, resources: ids, capabilities: operationScopes, hours: { type: 'integer', minimum: 1, maximum: 720 } }, ['id', 'resources', 'hours', 'capabilities']) },
+  }, async request => { await human(request); return home.updateMember(request.body.id, request.body.resources, request.body.capabilities, request.body.hours); });
   app.post<{ Body: { id: string } }>('/api/revoke', { schema: { body: object({ id: { type: 'string', minLength: 1, maxLength: 80 } }, ['id']) } },
     async request => { await human(request); await home.revoke(request.body.id); return home.status(); });
   app.post<{ Body: ActionIntent }>('/api/actions', { schema: { body: actionSchema } }, async (request, reply) => {

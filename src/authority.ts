@@ -103,7 +103,8 @@ export class Authority implements Governance {
       context: { context_id: contextId, requester_sovereign_id: principal.id,
         provider_sovereign_id: this.config.authority.sovereignId,
         request_parameters: decisionParameters(action), attributes: { participant_kind: principal.kind } },
-      resource_id: `ha:${action.homeId}/${action.resource.id}`, resource_action: 'update', verify: verification,
+      resource_id: action.capability === 'ha.entity.read' ? `ha:${action.homeId}/observations/${operationId}` : `ha:${action.homeId}/${action.resource.id}`,
+      resource_action: action.capability === 'ha.entity.read' ? 'create' : 'update', verify: verification,
       // Deliberately no breakGlass: an outage or DENY never opens the executor.
     }, async decision => {
       // Even a verified callback that stops during context/preflight checks can
