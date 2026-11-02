@@ -40,12 +40,16 @@ node scripts/test-ha-core.mjs
 docker exec "$name" mkdir -p /tmp/genesismesh-native-test/scripts
 docker cp custom_components "$name":/tmp/genesismesh-native-test/custom_components
 docker cp scripts/test-native-companion.py "$name":/tmp/genesismesh-native-test/scripts/test-native-companion.py
+mkdir -p temp
 GM_NATIVE_FIXTURE=1 node scripts/browser-lab.mjs > temp/native-core-lab.log 2>&1 &
 labpid=$!
+labready=false
 for attempt in $(seq 1 120); do
-  if node -e "fetch('http://127.0.0.1:8098/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then break; fi
+  if ! kill -0 "$labpid" 2>/dev/null; then cat temp/native-core-lab.log >&2; exit 1; fi
+  if test -s temp/browser-lab.json && node -e "const f=require('./temp/browser-lab.json');if(f.pid!==Number(process.argv[1]))process.exit(1);fetch('http://127.0.0.1:8098/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" "$labpid"; then labready=true; break; fi
   sleep 1
 done
+if [ "$labready" != true ]; then cat temp/native-core-lab.log >&2; exit 1; fi
 laburl="$(node -p "JSON.parse(require('fs').readFileSync('temp/browser-lab.json')).url")"
 docker exec -e GM_NATIVE_LAB_URL="$laburl" "$name" python /tmp/genesismesh-native-test/scripts/test-native-companion.py
 docker exec -i "$name" python - <<'PY'
