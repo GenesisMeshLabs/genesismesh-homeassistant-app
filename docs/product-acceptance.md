@@ -1,5 +1,33 @@
 # Product-owner review and acceptance scope
 
+## Native jobs and installed Home Assistant acceptance
+
+The native increment adds purpose-first observer/media jobs, real registry
+room/device grouping, a single reviewed scope, a native companion integration,
+one-time pairing and an actual participant-read verification. Each job targets
+one resource; system workflows share the configured connection's identity.
+Native user calls remain limited to the creator's active HA identity and entity
+permissions. Existing native users and external agents are separate follow-ons.
+
+Source review found target-binding bypass through the generic API, scope edits
+that could change a job's target, and missing identity-metadata transitions.
+All use shared validation now, with regression coverage. Reconnect rotates the
+old credential, and reauthentication rejects a wrong-job code before consuming it.
+
+Version `0.1.0-dev.5` passed all CI gates and was installed on the existing HA OS
+server with its matching companion. An independent UX reviewer navigated the
+real app, selected an existing eligible power measurement, created a read-only
+job, paired through native HA configuration and verified the companion's actual
+read and acknowledged signed record. No physical control was part of that check.
+The original unsaved sharing tab was not navigated or applied.
+
+Installed-server review identified additional experience improvements: reduce
+initial picker density, keep navigation reachable, provide code-copy feedback,
+preserve the job view during native setup, and show the observer's useful latest
+snapshot. These are follow-up acceptance items, not evidence that a non-author
+human novice has completed the journey. Future review records must distinguish
+the published source from installed browser results and physical outcomes.
+
 Reviewed against the user's requirements: useful whole-home coverage; people,
 agents, machines and devices as participants; familiar novice UX; maintainable
 access policies; official artwork; and repeatable publication. An independent
@@ -35,11 +63,11 @@ numeric value and metadata guard remain intact.
 ## Remaining product work
 
 The preview does not yet provide native household-user invitations, direct
-phone pairing or hardware-attested device enrollment. The current resource and
-operation selections form a compatible cross-product; use separate profiles
-when different devices need different operation rules. More exact per-resource
-grants, additional bounds/time windows, native room/device registry grouping,
-human approvals and uncertain-result reconciliation are follow-on work. Scenes
+phone pairing or hardware-attested device enrollment. Advanced service-client
+resource and operation selections form a compatible cross-product; native jobs
+use one target. More exact per-resource grants across multiple targets,
+additional bounds/time windows, human approvals and uncertain-result
+reconciliation are follow-on work. Native registry grouping is implemented. Scenes
 and scripts need their transitive target footprint reviewed before delegated
 execution; generic service passthrough would undermine scoped access.
 

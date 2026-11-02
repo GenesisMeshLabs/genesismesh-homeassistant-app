@@ -87,7 +87,7 @@ const server = createServer(async (req, res) => {
       const job = state.jobs.find(item => item.id === input.id); assert.equal(job.connectionState === 'ready_to_test' || job.connectionState === 'verified', true);
       job.verificationPending = true; value = { job };
       // Explicitly simulated companion callback. The real companion is exercised in native integration acceptance.
-      setTimeout(() => { job.verificationPending = false; job.connectionState = 'verified'; job.lastVerifiedAt = new Date().toISOString(); job.lastTest = { id: `test-${Date.now()}`, commandState: 'observed', evidenceState: 'acknowledged' }; }, 200);
+      setTimeout(() => { job.verificationPending = false; job.connectionState = 'verified'; job.lastVerifiedAt = new Date().toISOString(); const resource = resources.find(item => item.id === job.resources[0]); job.lastTest = { id: `test-${Date.now()}`, commandState: 'observed', evidenceState: 'acknowledged', observation: observeState(resource, rawStates.find(raw => raw.entity_id === resource.entityId)) }; }, 200);
     }
     if (relative === 'api/jobs/revoke') { const job = state.jobs.find(item => item.id === input.id); job.connectionState = 'revoked'; state.members.find(member => member.id === job.memberId).enabled = false; }
     if (relative === 'api/actions') {
@@ -257,6 +257,15 @@ try {
     await page.getByRole('button', { name: 'Resume setup', exact: true }).click();
     assert.equal(await page.getByLabel('Job name', { exact: true }).inputValue(), 'Energy observer');
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByRole('heading', { name: 'Suggested measurements', exact: true }).waitFor();
+    const continueBox = await page.getByRole('button', { name: 'Continue', exact: true }).boundingBox();
+    assert.ok(continueBox.y + continueBox.height <= 900, 'Wizard navigation should remain in the viewport');
+    assert.equal(await page.getByRole('radio', { name: 'Choose Evening scene', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Browse all readable states', exact: true }).click();
+    await page.getByLabel('Find a room or device', { exact: true }).fill('Evening scene');
+    await page.getByRole('radio', { name: 'Choose Evening scene', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Show suggested measurements', exact: true }).click();
+    await page.getByLabel('Find a room or device', { exact: true }).fill('Garden');
     await page.getByRole('heading', { name: 'Garden', exact: true }).waitFor();
     await page.getByRole('radio', { name: 'Choose Garden temperature', exact: true }).check();
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
@@ -271,6 +280,14 @@ try {
     await page.getByRole('button', { name: 'Get a connection code', exact: true }).click();
     await page.getByText('mock-single-use-code', { exact: true }).waitFor();
     assert.equal(await page.getByRole('link', { name: 'Open Home Assistant integration setup', exact: true }).getAttribute('href'), '/config/integrations/dashboard/add?domain=genesismesh');
+    assert.equal(await page.getByRole('link', { name: 'Open Home Assistant integration setup', exact: true }).getAttribute('target'), '_blank');
+    assert.match(await page.getByRole('link', { name: 'Open Home Assistant integration setup', exact: true }).getAttribute('rel'), /noopener/);
+    await page.getByRole('button', { name: 'Copy connection code', exact: true }).click();
+    await page.getByText('Connection code copied.', { exact: false }).waitFor();
+    assert.equal(await page.evaluate(() => window.__fixtureCopied), 'mock-single-use-code');
+    await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('Fixture clipboard unavailable'); } } }));
+    await page.getByRole('button', { name: 'Copy connection code', exact: true }).click();
+    await page.getByText('Automatic copy is unavailable here.', { exact: false }).waitFor();
     state.companion.state = 'connected'; state.jobs[0].connectionState = 'ready_to_test';
     await page.getByRole('button', { name: 'Check connection', exact: true }).click();
     await page.getByText('Integration pairing accepted', { exact: true }).waitFor();
@@ -279,8 +296,32 @@ try {
     await page.getByText('First request verified', { exact: true }).waitFor();
     assert.equal(dispatched.length, 0, 'Wizard verification must not send native admin device controls');
     await page.getByRole('heading', { name: 'Ready for your Home Assistant workflow', exact: true }).waitFor();
+    await page.getByText('Observe status', { exact: true }).waitFor();
+    assert.equal(await page.getByText('Set volume', { exact: true }).count(), 0);
+    assert.equal(await page.getByRole('link', { name: 'Open Home Assistant automations', exact: true }).getAttribute('href'), '/config/automation/dashboard');
     await page.getByRole('button', { name: 'Back to jobs', exact: true }).click();
     await profile(page, 'Energy observer').getByText('Connection tested', { exact: true }).waitFor();
+    await profile(page, 'Energy observer').getByText('21.5 °C', { exact: true }).waitFor();
+    const previousObservationId = state.jobs[0].lastTest.id;
+    await profile(page, 'Energy observer').getByRole('button', { name: 'Refresh reading', exact: true }).click();
+    await profile(page, 'Energy observer').getByText('21.5 °C', { exact: true }).waitFor();
+    await page.getByText('Updated reading received from this job’s integration connection.', { exact: true }).waitFor();
+    assert.notEqual(state.jobs[0].lastTest.id, previousObservationId); assert.equal(dispatched.length, 0);
+    await profile(page, 'Energy observer').getByRole('button', { name: 'View result', exact: true }).click();
+    await page.getByText('Observed state: 21.5', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Dismiss result', exact: true }).click();
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByRole('heading', { name: 'Your useful connections', exact: true }).waitFor();
+    const returningJob = await profile(page, 'Energy observer').boundingBox();
+    assert.ok(returningJob.y < 600, 'Existing useful jobs should precede a large add-another card');
+    if (width === 1280) {
+      await page.setViewportSize({ width, height: 585 });
+      const valueBox = await profile(page, 'Energy observer').getByText('21.5 °C', { exact: true }).boundingBox();
+      assert.ok(valueBox.y + valueBox.height <= 585, 'The observed value should be visible on a short desktop viewport');
+      await page.setViewportSize({ width, height: 900 });
+    }
+    await page.screenshot({ path: `temp/native-home-${width}.png`, fullPage: true });
+    await page.getByRole('button', { name: 'Jobs', exact: true }).click();
     await page.screenshot({ path: `temp/native-jobs-${width}.png`, fullPage: true });
     await page.getByRole('button', { name: 'Give something a job', exact: true }).click();
     await page.getByRole('button', { name: /^Give a media helper limits/ }).click();
@@ -294,7 +335,7 @@ try {
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
     assert.equal(await page.getByRole('button', { name: 'Create job and connect', exact: true }).isDisabled(), true);
     await page.getByRole('button', { name: 'Finish later', exact: true }).click();
-    await profile(page, 'Energy observer').getByRole('button', { name: 'Use in Home Assistant', exact: true }).click();
+    await profile(page, 'Energy observer').getByRole('button', { name: 'Connection details', exact: true }).click();
     await page.getByRole('button', { name: 'Back to jobs', exact: true }).click();
     await page.getByRole('button', { name: 'Resume setup', exact: true }).click();
     await page.getByRole('heading', { name: 'Connect & verify', exact: true }).waitFor();

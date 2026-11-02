@@ -14,6 +14,7 @@ export const purposeCapabilities = (purpose: Purpose, resources: Resource[]) => 
 export const purposeMatches = (purpose: Purpose, resource: Resource) => purpose === 'observer' ? resource.readable
   : purpose === 'media' ? resource.kind === 'media_player' && resource.operations.some(operation => operation.capability.startsWith('ha.media.'))
     : resource.kind === 'light' && resource.operations.some(operation => operation.capability.startsWith('ha.light.'));
+export const suggestedMeasurement = (resource: Resource) => ['sensor', 'binary_sensor'].includes(resource.kind);
 
 export interface DeviceGroup { key: string; name: string; resources: Resource[] }
 export interface RoomGroup { name: string; devices: DeviceGroup[] }

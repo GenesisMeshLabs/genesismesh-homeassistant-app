@@ -46,7 +46,9 @@ Choose the paired connection in the native selector. Its target and Mesh
 identity are bound by the connection; actions cannot accept arbitrary profiles,
 credentials, actors or targets. HA's existing triggers and schedules choose
 when to invoke it. Responses include decisions, results and evidence state;
-refusals appear as native action errors and are explained in Activity.
+app policy refusals appear as native action errors and are explained in Activity.
+Native HA permission or local scope checks can refuse before the app is called;
+those appear in HA's action error/trace rather than a Mesh execution record.
 
 The authenticated actor is the **HA workflow connection**, not an individual
 automation. HA system workflows using that connection share its permission.
