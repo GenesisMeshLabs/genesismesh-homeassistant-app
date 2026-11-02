@@ -1,0 +1,17 @@
+**
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.web.json
+!vite.config.ts
+!authority-requirements.txt
+!authority-constraints.txt
+!src/
+!src/**
+!tests/
+!tests/**
+!web/
+!web/**
+!genesismesh/
+!genesismesh/Dockerfile
+!genesismesh/entrypoint.sh

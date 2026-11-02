@@ -1,0 +1,15 @@
+import { readFileSync, appendFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+const config = JSON.parse(readFileSync('genesismesh/config.json'));
+assert.match(config.version, /^\d+\.\d+\.\d+-dev\.\d+$/);
+assert.equal(config.image, 'ghcr.io/genesismeshlabs/genesismesh-homeassistant-app');
+assert.deepEqual(config.arch, ['amd64', 'aarch64']);
+assert.equal(config.ingress_port, 8099);
+assert.equal(config.homeassistant_api, true);
+assert.equal(config.hassio_api, false);
+assert.equal(config.host_network, false);
+assert.ok(!config.ports && !config.privileged && !config.docker_api);
+assert.match(process.env.GITHUB_RUN_NUMBER ?? '', /^\d+$/);
+const version = config.version.replace(/dev\.\d+$/, `dev.${process.env.GITHUB_RUN_NUMBER}`);
+appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\nimage=${config.image}\n`);
+console.log(`Plan: ${version}, amd64/aarch64; metadata advances only after verified public images.`);

@@ -40,7 +40,17 @@ identity, approvals and offline grants remain planned. See
 [the managed app profile](docs/managed-app.md) and
 [the backend boundary](docs/architecture.md).
 
-## Run the proof
+## Home Assistant app
+
+[Add this app repository to Home Assistant](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FGenesisMeshLabs%2Fgenesismesh-homeassistant-app),
+then install **Genesis Mesh** and open its Web UI as an HA administrator.
+See [installation and preview limits](genesismesh/DOCS.md).
+
+Each push to `main` automatically verifies, builds and publishes versioned
+amd64/aarch64 images, a prerelease, and install metadata. Failed checks preserve
+the advertised version. See [release automation](docs/releases.md).
+
+## Run the software checks
 
 Requires Node.js 24.14 or newer within the 24.x line, and Python 3.12 or newer
 for the disposable authority. Node's SQLite API is experimental in the verified
