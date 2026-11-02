@@ -1,6 +1,6 @@
 {
   "name": "Genesis Mesh",
-  "version": "0.1.0-dev.1",
+  "version": "0.1.0-dev.2",
   "slug": "genesismesh",
   "description": "Limited, verifiable home control for people, AI agents, machines and devices",
   "url": "https://github.com/GenesisMeshLabs/genesismesh-homeassistant-app",
