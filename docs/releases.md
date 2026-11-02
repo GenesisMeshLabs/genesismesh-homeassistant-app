@@ -8,6 +8,10 @@ long-lived publication secret:
    constraints; run unit, real-authority integration and browser tests. A separate
    pinned real HA Core container verifies native role changes and REST catalog
    compatibility; it never dispatches a physical command.
+   The real-backend browser acceptance runner automatically creates a disposable
+   home with the released authority, real ingress/management/client APIs and
+   simulated Supervisor identity and HA devices. It covers finite control
+   categories and access/lifecycle/policy flows without touching a real home.
 2. Allocate `0.1.0-dev.<workflow run number>` (the base is in app config).
 3. Build native amd64 and arm64 images on separate runners. Each starts a fresh
    authority automatically and passes scoped-access, deny, fresh native-role,

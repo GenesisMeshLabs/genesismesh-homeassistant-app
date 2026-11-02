@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { hostname } from 'node:os';
 import { startLocalAuthority } from './local-authority.js';
 import { ManagedHome } from './managed-home.js';
 import { HomeAssistant } from './home-assistant.js';
@@ -13,10 +14,10 @@ try {
   const directory = resolve(process.env['GM_APP_DATA_DIR'] ?? '/data/runtime');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const local = await startLocalAuthority(directory, process.env['GM_AUTHORITY_PYTHON'] ?? '/opt/authority/bin/python');
-  const home = new ManagedHome(directory, local, new HomeAssistant('http://supervisor/core/api', token, fetch, 'supervisor'));
+  const home = new ManagedHome(directory, local, new HomeAssistant('http://supervisor/core/api', token, fetch, 'supervisor'), hostname());
   await home.initialize();
   const ui = createIngress(home, new SupervisorRoles(token), resolve('web-dist'), local.isAlive);
-  const service = createServer(() => home.serviceRuntime()?.config, { execute: (principal, intent) => home.actParticipant(principal.id, intent) }, home.journal, 'supervisor');
+  const service = createServer(() => home.serviceRuntime()?.config, { execute: (principal, intent) => home.actParticipant(principal.id, intent) }, home.journal, 'supervisor', id => home.noteClientVisit(id));
   await ui.listen({ host: '0.0.0.0', port: 8099 });
   await service.listen({ host: '0.0.0.0', port: 8098 });
   const timer = setInterval(() => { void home.flush().catch(() => undefined); }, 15000); timer.unref();

@@ -1,6 +1,24 @@
 import { createServer, type Server } from 'node:http';
 import { once } from 'node:events';
 
+// Independent finite upstream fixture; deliberately excludes generic service passthrough.
+const serviceCatalog = [
+  { domain: 'climate', services: { set_temperature: {}, set_hvac_mode: {} } },
+  { domain: 'light', services: { turn_on: {}, turn_off: {} } },
+  { domain: 'switch', services: { turn_on: {}, turn_off: {} } },
+  { domain: 'media_player', services: { volume_set: {}, media_pause: {}, media_play: {}, media_stop: {}, media_next_track: {}, media_previous_track: {}, volume_mute: {}, turn_on: {}, turn_off: {} } },
+  { domain: 'fan', services: { turn_on: {}, turn_off: {}, set_percentage: {} } },
+  { domain: 'cover', services: { open_cover: {}, close_cover: {}, stop_cover: {}, set_cover_position: {} } },
+  { domain: 'humidifier', services: { turn_on: {}, turn_off: {}, set_humidity: {} } },
+  { domain: 'vacuum', services: { start: {}, pause: {}, stop: {}, return_to_base: {} } },
+  { domain: 'input_boolean', services: { turn_on: {}, turn_off: {} } },
+  { domain: 'input_number', services: { set_value: {} } },
+  { domain: 'number', services: { set_value: {} } },
+  { domain: 'input_select', services: { select_option: {} } },
+  { domain: 'select', services: { select_option: {} } },
+];
+const finiteServices = new Set(serviceCatalog.flatMap(item => Object.keys(item.services).map(service => `/api/services/${item.domain}/${service}`)));
+
 /** A finite HA REST simulator; this is not a real HA installation or physical acceptance. */
 export class HaSimulator {
   readonly server: Server;
@@ -18,16 +36,11 @@ export class HaSimulator {
         res.end(JSON.stringify({ unit_system: { temperature: this.unit } })); return;
       }
       if (req.method === 'GET' && req.url === '/api/services') {
-        res.end(JSON.stringify([
-          { domain: 'climate', services: { set_temperature: {}, set_hvac_mode: {} } },
-          { domain: 'light', services: { turn_on: {}, turn_off: {} } },
-          { domain: 'switch', services: { turn_on: {}, turn_off: {} } },
-          { domain: 'media_player', services: { volume_set: {}, media_pause: {}, media_play: {}, volume_mute: {} } },
-        ])); return;
+        res.end(JSON.stringify(serviceCatalog)); return;
       }
       if (req.method === 'GET' && req.url === '/api/states') {
         res.end(JSON.stringify([
-          { entity_id: 'climate.living_room', state: 'heat', attributes: { friendly_name: 'Living-room heating', min_temp: 7, max_temp: 35 } },
+          { entity_id: 'climate.living_room', state: 'heat', attributes: { friendly_name: 'Living-room heating', min_temp: 7, max_temp: 35, hvac_modes: ['off', 'heat'], supported_features: 1 } },
           { entity_id: 'light.desk', state: 'off', attributes: { friendly_name: 'Desk lamp', supported_color_modes: ['brightness'] } },
           ...this.extraEntities,
         ])); return;
@@ -37,9 +50,9 @@ export class HaSimulator {
       if (req.method === 'GET' && extra) { res.end(JSON.stringify(extra)); return; }
       if (req.method === 'GET' && entity) {
         res.end(JSON.stringify({ entity_id: entity, state: this.unavailable ? 'unavailable' : entity.startsWith('light') ? 'on' : 'heat',
-          attributes: { min_temp: 7, max_temp: 35 } })); return;
+          attributes: { min_temp: 7, max_temp: 35, hvac_modes: ['off', 'heat'], supported_features: 1, supported_color_modes: ['brightness'] } })); return;
       }
-      if (req.method === 'POST' && /^\/api\/services\/(climate\/(set_temperature|set_hvac_mode)|light\/turn_(on|off)|switch\/turn_(on|off)|media_player\/(volume_set|media_play|media_pause|volume_mute))$/.test(req.url ?? '')) {
+      if (req.method === 'POST' && finiteServices.has(req.url ?? '')) {
         const chunks: Buffer[] = [];
         for await (const chunk of req) chunks.push(Buffer.from(chunk));
         this.calls.push({ path: req.url!, data: JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown> });

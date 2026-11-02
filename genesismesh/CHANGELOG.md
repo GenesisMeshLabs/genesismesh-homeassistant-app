@@ -10,6 +10,11 @@
 
 ## Unreleased
 
+- Whole-home entity inventory, governed observations and broader finite device controls.
+- Explicit operation scopes, editable/renewable access, signed per-profile volume ceilings.
+- Client first-contact status, connection guidance, deliberate control values and meaningful activity.
+- Product-owner review and repeatable real-backend browser acceptance across all finite operation categories.
+
 - Managed local authority, HA administrator ingress, scoped service access,
   resource and temperature bounds, revocation, and activity.
 - Automated amd64/aarch64 image verification and publication.

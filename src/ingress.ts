@@ -45,16 +45,17 @@ export function createIngress(home: Pick<ManagedHome, 'status' | 'catalog' | 'co
   const ids = { type: 'array', minItems: 1, maxItems: 256, uniqueItems: true, items: { type: 'string', pattern: '^r-[a-f0-9]{24}$' } };
   const operationScopes = { type: 'array', minItems: 1, maxItems: 64, uniqueItems: true, items: { enum: capabilities } };
   const object = (properties: object, required: string[]) => ({ type: 'object', additionalProperties: false, properties, required });
+  const limits = object({ maxVolumePct: { type: 'number', minimum: 0, maximum: 100 } }, []);
   app.post<{ Body: { resources: string[]; minimum: number; maximum: number } }>('/api/setup', {
     schema: { body: object({ resources: ids, minimum: { type: 'number', minimum: 10, maximum: 35 }, maximum: { type: 'number', minimum: 10, maximum: 35 } }, ['resources', 'minimum', 'maximum']) },
   }, async request => { await home.configure(await human(request), request.body.resources, request.body.minimum, request.body.maximum); return home.status(); });
-  app.post<{ Body: { name: string; kind: ParticipantKind; resources: string[]; hours: number; capabilities: Capability[] } }>('/api/access', {
+  app.post<{ Body: { name: string; kind: ParticipantKind; resources: string[]; hours: number; capabilities: Capability[]; limits?: { maxVolumePct?: number } } }>('/api/access', {
     schema: { body: object({ name: { type: 'string', minLength: 1, maxLength: 80 }, kind: { enum: ['person', 'agent', 'machine', 'device', 'service'] },
-      resources: ids, capabilities: operationScopes, hours: { type: 'integer', minimum: 1, maximum: 720 } }, ['name', 'kind', 'resources', 'hours', 'capabilities']) },
-  }, async request => { await human(request); return home.addMember(request.body.name, request.body.kind, request.body.resources, request.body.hours, request.body.capabilities); });
-  app.post<{ Body: { id: string; resources: string[]; hours: number; capabilities: Capability[] } }>('/api/access/update', {
-    schema: { body: object({ id: { type: 'string', minLength: 1, maxLength: 80 }, resources: ids, capabilities: operationScopes, hours: { type: 'integer', minimum: 1, maximum: 720 } }, ['id', 'resources', 'hours', 'capabilities']) },
-  }, async request => { await human(request); return home.updateMember(request.body.id, request.body.resources, request.body.capabilities, request.body.hours); });
+      resources: ids, capabilities: operationScopes, limits, hours: { type: 'integer', minimum: 1, maximum: 720 } }, ['name', 'kind', 'resources', 'hours', 'capabilities']) },
+  }, async request => { await human(request); return home.addMember(request.body.name, request.body.kind, request.body.resources, request.body.hours, request.body.capabilities, request.body.limits); });
+  app.post<{ Body: { id: string; resources: string[]; hours: number; capabilities: Capability[]; limits?: { maxVolumePct?: number } } }>('/api/access/update', {
+    schema: { body: object({ id: { type: 'string', minLength: 1, maxLength: 80 }, resources: ids, capabilities: operationScopes, limits, hours: { type: 'integer', minimum: 1, maximum: 720 } }, ['id', 'resources', 'hours', 'capabilities']) },
+  }, async request => { await human(request); return home.updateMember(request.body.id, request.body.resources, request.body.capabilities, request.body.hours, request.body.limits); });
   app.post<{ Body: { id: string } }>('/api/revoke', { schema: { body: object({ id: { type: 'string', minLength: 1, maxLength: 80 } }, ['id']) } },
     async request => { await human(request); await home.revoke(request.body.id); return home.status(); });
   app.post<{ Body: ActionIntent }>('/api/actions', { schema: { body: actionSchema } }, async (request, reply) => {

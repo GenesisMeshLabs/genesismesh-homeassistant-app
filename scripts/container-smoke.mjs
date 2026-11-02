@@ -9,7 +9,7 @@ import { WebSocketServer } from 'ws';
 const token = 'container-fixture-only';
 const entities = [
   { entity_id: 'light.desk', state: 'off', attributes: { friendly_name: 'Desk lamp' } },
-  { entity_id: 'climate.living_room', state: 'heat', attributes: { friendly_name: 'Heating', min_temp: 7, max_temp: 35 } },
+  { entity_id: 'climate.living_room', state: 'heat', attributes: { friendly_name: 'Heating', min_temp: 7, max_temp: 35, supported_features: 1 } },
 ];
 if (process.argv[2] === 'serve') {
   let calls = 0, administrator = true;

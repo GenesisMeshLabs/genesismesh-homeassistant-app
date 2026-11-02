@@ -1,6 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture, intent } from './helpers.js';
+import { createServer } from '../src/server.js';
+
+test('client usage callback runs only after bearer authentication and operation summaries preserve intent', async t => {
+  const f = fixture(t); const visits: string[] = [];
+  const tracked = createServer(f.config, f.executor, f.journal, 'standalone', async id => { visits.push(id); });
+  t.after(() => tracked.close());
+  assert.equal((await tracked.inject({ url: '/health' })).statusCode, 200);
+  assert.equal((await tracked.inject({ url: '/v1/resources' })).statusCode, 401);
+  assert.deepEqual(visits, []);
+  assert.equal((await tracked.inject({ url: '/v1/resources', headers: { authorization: `Bearer ${f.tokens['machine']}` } })).statusCode, 200);
+  assert.deepEqual(visits, ['machine']);
+  const response = await f.send(intent());
+  assert.match(response.json().summary, /Temperature °C: 21/);
+  assert.deepEqual(response.json().parameters, { temperature_c: 21 });
+});
 
 test('all participant classes use the same executor without sharing subject attribution', async t => {
   const f = fixture(t);

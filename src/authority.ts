@@ -45,9 +45,13 @@ export class Authority implements Governance {
     });
   }
 
-  private async policies(action: CompiledAction): Promise<BoundaryPolicy[]> {
-    const expected = this.config.authority.expectations.find(e => e.capability === action.capability)?.policies;
-    if (!expected?.length) throw new AppError('policy_expectations_missing', 'This action has no configured policy expectations.', 503);
+  private async policies(action: CompiledAction, principal: Principal): Promise<BoundaryPolicy[]> {
+    const global = this.config.authority.expectations.find(e => e.capability === action.capability)?.policies;
+    const scoped = principal.operationPolicies?.find(e => e.capability === action.capability)?.policies ?? [];
+    if (!global?.length || (action.capability === 'ha.media.volume' && principal.limits?.maxVolumePct !== undefined && !scoped.length)) {
+      throw new AppError('policy_expectations_missing', 'This action has no complete configured policy expectations.', 503);
+    }
+    const expected = [...global, ...scoped];
     const active = await this.client.policy.active();
     if (!active.policy_set_healthy || active.enforcement !== 'required') {
       throw new AppError('policy_unhealthy', 'The authority must require a healthy policy set before this app can act.', 503);
@@ -94,7 +98,7 @@ export class Authority implements Governance {
 
   async run(principal: Principal, action: CompiledAction, operationId: string,
     act: (verified: VerifiedAction) => Promise<ActionReport<CommandState>>): Promise<GovernanceResult> {
-    const policies = await this.policies(action);
+    const policies = await this.policies(action, principal);
     const attestation = await this.attestation(principal);
     const contextId = `ha:${action.digest}`;
     const verification = { operatorPublicKeys: this.keys, expectedPolicies: policies, expectedAttestation: attestation };
@@ -115,7 +119,7 @@ export class Authority implements Governance {
       return act({
         decisionId: decision.decision_id,
         beforeDispatch: async () => {
-          await this.policies(action);
+          await this.policies(action, principal);
           const current = await this.client.attestation.get(principal.attestationId);
           const verified = verifyBoundaryDecision(decision, verification);
           if (!verified.accepted || !verified.authorized || current.status !== 'active' ||

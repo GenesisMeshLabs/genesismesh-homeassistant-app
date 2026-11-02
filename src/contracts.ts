@@ -11,6 +11,8 @@ export interface Principal {
   resources: string[];
   enabled: boolean;
   capabilities?: Capability[];
+  limits?: { maxVolumePct?: number };
+  operationPolicies?: { capability: Capability; policies: PolicyRef[] }[];
 }
 export interface Resource {
   id: string;
@@ -73,6 +75,8 @@ export interface Operation {
   createdAt: string;
   updatedAt: string;
   observation?: Observation;
+  summary?: string;
+  parameters?: Record<string, string | number>;
 }
 
 const id = { type: 'string', pattern: '^[a-z0-9][a-z0-9_.:-]{0,79}$' } as const;
@@ -102,6 +106,10 @@ export const configSchema = object({
     credentialSha256: digest, expiresAt: date, attestationId: text,
     resources: { type: 'array', uniqueItems: true, maxItems: 256, items: id }, enabled: { type: 'boolean' },
     capabilities: { type: 'array', uniqueItems: true, minItems: 1, maxItems: 64, items: { enum: capabilities } },
+    limits: object({ maxVolumePct: { type: 'number', minimum: 0, maximum: 100 } }, []),
+    operationPolicies: { type: 'array', maxItems: 16, items: object({ capability: { enum: capabilities },
+      policies: { type: 'array', minItems: 1, maxItems: 16, items: object({ id: text, version: { type: 'integer', minimum: 1 }, digest }, ['id', 'version', 'digest']) },
+    }, ['capability', 'policies']) },
   }, ['id', 'kind', 'credentialSha256', 'expiresAt', 'attestationId', 'resources', 'enabled']) },
   resources: { type: 'array', minItems: 1, maxItems: 256, items: object({
     id, name: text, entityId: { type: 'string', pattern: '^[a-z_][a-z0-9_]*\\.[a-z0-9_]+$' },

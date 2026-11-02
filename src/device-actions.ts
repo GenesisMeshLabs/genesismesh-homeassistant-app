@@ -13,7 +13,7 @@ export const definitions = [
   { capability: 'ha.entity.read', label: 'Read current status', kinds: ['*'], parameters: [] },
   { capability: 'ha.light.set', label: 'Turn light on or off', kinds: ['light'], parameters: [choice('state', 'Power', ['on', 'off'])], field: 'state', options: power },
   { capability: 'ha.light.brightness', label: 'Set light brightness', kinds: ['light'], parameters: [number('brightnessPct', 'Brightness %', 0, 100)], service: 'turn_on', field: 'brightnessPct', haField: 'brightness_pct' },
-  { capability: 'ha.climate.set_temperature', label: 'Set heating or cooling temperature', kinds: ['climate'], parameters: [number('temperatureC', 'Temperature °C', -50, 60, 0.5)], service: 'set_temperature', field: 'temperatureC', haField: 'temperature' },
+  { capability: 'ha.climate.set_temperature', label: 'Set heating or cooling temperature', kinds: ['climate'], parameters: [number('temperatureC', 'Temperature °C', -50, 60, 0.5)], service: 'set_temperature', field: 'temperatureC', haField: 'temperature', feature: 1 },
   { capability: 'ha.climate.mode', label: 'Choose heating or cooling mode', kinds: ['climate'], parameters: [choice('mode', 'Mode', ['off', 'heat', 'cool', 'heat_cool', 'auto', 'dry', 'fan_only'])], service: 'set_hvac_mode', field: 'mode', haField: 'hvac_mode', nativeOptions: 'hvac_modes' },
   { capability: 'ha.switch.set', label: 'Turn switch on or off', kinds: ['switch'], parameters: [choice('state', 'Power', ['on', 'off'])], field: 'state', options: power },
   { capability: 'ha.fan.set', label: 'Turn fan on or off', kinds: ['fan'], parameters: [choice('state', 'Power', ['on', 'off'])], field: 'state', options: power },

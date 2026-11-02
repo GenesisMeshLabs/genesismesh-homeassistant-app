@@ -8,13 +8,17 @@ export interface Summary { total: number; returned?: number; truncated?: boolean
 export interface Member {
   id: string; name: string; kind: string; resources: string[]; capabilities: string[];
   enabled: boolean; expiresAt: string; nativeUser: boolean; legacyLimited: boolean;
+  limits?: { maxVolumePct?: number };
+  connection?: { state: 'not_connected' | 'active' | 'expired' | 'revoked' | 'needs_review'; lastRequestAt?: string };
 }
 export interface Observation { state: string; attributes: Record<string, unknown>; observedAt: string }
 export interface Operation {
   id: string; requestId: string; subjectId: string; resourceId: string; capability: string; commandState: string;
   evidenceState: string; reason: string; createdAt: string; policyFailures: string[]; observation?: Observation;
+  summary?: string; parameters?: Record<string, string | number>;
 }
-export interface Status { ready: boolean; needsRecovery: boolean; minimum: number; maximum: number; resources: Resource[]; members: Member[]; activity: Operation[]; custody: string }
+export interface Status { ready: boolean; needsRecovery: boolean; minimum: number; maximum: number; resources: Resource[]; members: Member[]; activity: Operation[]; custody: string;
+  connectionGuide?: { kind: 'service-client'; baseUrl?: string; network: string; directPhoneJoin: false } }
 export const readCapability = 'ha.entity.read';
 const kindNames: Record<string, string> = { light: 'Lights', switch: 'Switches & plugs', fan: 'Fans', climate: 'Heating & cooling', media_player: 'TVs & speakers', cover: 'Blinds & covers', sensor: 'Sensors', binary_sensor: 'Status sensors', scene: 'Scenes', vacuum: 'Vacuums', humidifier: 'Humidifiers', input_boolean: 'On/off helpers', input_number: 'Number helpers', number: 'Number controls', input_select: 'Selection helpers', select: 'Selection controls', todo: 'To-do lists' };
 export const kindLabel = (kind: string) => kindNames[kind] ?? kind.replaceAll('_', ' ');

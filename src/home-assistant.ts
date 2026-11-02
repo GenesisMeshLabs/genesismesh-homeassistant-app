@@ -76,7 +76,7 @@ export class HomeAssistant implements HomeExecutor {
       const operation = operationOptions(action.resource.kind, attrs, await this.services()).find(op => op.capability === action.capability);
       if (!operation) throw new AppError('unsupported_action', 'This device does not currently advertise the requested control. No command was sent.');
       for (const parameter of operation.parameters) {
-        const key = parameter.name === 'temperatureC' ? 'temperature_c' : parameter.name;
+        const key = parameter.name === 'temperatureC' ? 'temperature_c' : action.capability === 'ha.helper.number' && parameter.name === 'value' ? 'numeric_setting' : parameter.name;
         const value = action.parameters[key];
         if (parameter.type === 'select' && !parameter.options?.includes(String(value))) throw new AppError('unsupported_option', 'This device no longer supports the selected option.');
         if (parameter.type === 'number' && (typeof value !== 'number' || !Number.isFinite(value) || value < parameter.minimum! || value > parameter.maximum!)) throw new AppError('unsupported_range', 'The requested value is outside the device-supported range.');

@@ -8,7 +8,7 @@ import { Executor } from './executor.js';
 import { Journal } from './journal.js';
 import { definitions, legacyCapabilities } from './device-actions.js';
 
-export function createServer(input: RuntimeConfig | (() => RuntimeConfig | undefined), executor: Pick<Executor, 'execute'>, journal: Journal, profile: 'standalone' | 'supervisor' = 'standalone'): FastifyInstance {
+export function createServer(input: RuntimeConfig | (() => RuntimeConfig | undefined), executor: Pick<Executor, 'execute'>, journal: Journal, profile: 'standalone' | 'supervisor' = 'standalone', onAuthenticated?: (id: string) => Promise<void>): FastifyInstance {
   const configFor = () => {
     const value = typeof input === 'function' ? input() : input;
     if (!value) throw new AppError('setup_required', 'The home has not finished access setup.', 409);
@@ -27,7 +27,7 @@ export function createServer(input: RuntimeConfig | (() => RuntimeConfig | undef
   const principal = (request: FastifyRequest): Principal => authenticate(request.headers.authorization, configFor().principals);
   app.addHook('onRequest', async request => {
     if (request.headers.origin) throw new AppError('browser_origin_not_supported', 'This preview API accepts authenticated service clients only.', 403);
-    if (request.url !== '/health') principal(request);
+    if (request.url !== '/health') { const who = principal(request); await onAuthenticated?.(who.id); }
   });
   app.addHook('onSend', async (_request, reply, payload) => {
     reply.header('Cache-Control', 'no-store').header('X-Content-Type-Options', 'nosniff');

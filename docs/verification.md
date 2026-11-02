@@ -6,6 +6,31 @@ Dependency pins are in npm metadata, Python requirements/constraints, the
 Dockerfile and the HA Core image fixture. This is software preview evidence,
 not completion of the entire P0 program or physical/production acceptance.
 
+## Product-owner increment
+
+Fresh Windows verification after the independent review and fixes:
+
+| Gate | Result and scope |
+| --- | --- |
+| Unit and contract tests | 39 passed |
+| Real authority integration | 18 + 1 passed; expanded assertions cover signed volume ceilings, explicit changes, observation digest, usage, expiry/renewal, revocation and interrupted-edit recovery |
+| Mocked browser regressions | Desktop 1280px, phone 390px, existing-home migration and 300-entity explicit selection/capacity passed; fixtures consume backend metadata |
+| Independent real-backend browser acceptance | All 20 shipped capabilities across 51 resource/option cases passed through actual forms and signed authority decisions; access/read/limit/edit/revoke and desktop/phone flows passed |
+| Product-owner review | Fix-now criteria accepted for experimental preview; remaining gaps recorded in [product acceptance](product-acceptance.md) |
+
+`npm run test:browser:live` starts its own disposable app and real released
+authority, then performs the browser acceptance. Supervisor peer/identity and
+HA device responses are simulated. The independent browser test found and
+verified fixes for select-label accessibility and the numeric-helper context
+field; numeric intent remains strictly typed and the SDK metadata guard stays
+enabled. No existing household devices are operated by these tests.
+
+The new container and native HA gates are automated in the publication
+workflow; their result must be read from that increment's run. The earlier
+published baseline evidence below is retained separately.
+
+## Published 0.1.0-dev.2 baseline
+
 | Check | Result | Scope |
 | --- | --- | --- |
 | TypeScript compilation | Passed | Included in unit and integration commands |

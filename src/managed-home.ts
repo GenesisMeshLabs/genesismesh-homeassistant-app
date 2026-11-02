@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, renameSync, openSync, fsyncSync, closeSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { GenesisMeshClient, parseJson, policyDigest, publicKeyFromSeed, seedSigner, type BoundaryPolicyIntent, type BoundaryPolicy } from 'genesis-mesh-sdk';
+import { GenesisMeshClient, parseJson, policyDigest, publicKeyFromSeed, seedSigner, canonicalDigest, type BoundaryPolicyIntent, type BoundaryPolicy } from 'genesis-mesh-sdk';
 import type { LocalAuthorityInfo } from './local-authority.js';
 import { readSigningSeed } from './secrets.js';
 import { credentialDigest } from './identity.js';
@@ -15,7 +15,7 @@ import { HomeAssistant } from './home-assistant.js';
 import { AppError } from './errors.js';
 import type { HaUser } from './ha-identity.js';
 
-interface Member { name: string; principal: Principal; haUser?: string; legacyLimited?: boolean }
+interface Member { name: string; principal: Principal; haUser?: string; legacyLimited?: boolean; lastRequestAt?: string; editPending?: boolean }
 interface HomeState {
   version: 1; homeId: string; minimum: number; maximum: number; resources: Resource[]; members: Member[];
   expectations: RuntimeConfig['authority']['expectations'];
@@ -41,9 +41,10 @@ export class ManagedHome {
   private tail: Promise<unknown> = Promise.resolve();
   private queued = 0;
   private inventoryCache: InventoryResource[] = [];
+  private readonly presenceWritten = new Map<string, number>();
 
   constructor(private readonly directory: string, private readonly local: LocalAuthorityInfo,
-    private readonly home: HomeAssistant) {
+    private readonly home: HomeAssistant, private readonly serviceHostname?: string) {
     this.stateFile = join(directory, 'home.json');
     this.transition = join(directory, 'access-transition.json');
     this.admin = new GenesisMeshClient({ baseUrl: local.url, audience: local.publicKey,
@@ -108,11 +109,56 @@ export class ManagedHome {
         operations: [], readable: canRead(resource.kind), reason: 'Refresh Devices to check current status and supported controls.' }),
       members: this.state.members.map(m => ({ id: m.principal.id, name: m.name, kind: m.principal.kind,
         resources: m.principal.resources, enabled: m.principal.enabled, expiresAt: m.principal.expiresAt, nativeUser: !!m.haUser,
-        capabilities: m.principal.capabilities ?? [...legacyCapabilities], legacyLimited: !!m.legacyLimited })),
+        capabilities: m.principal.capabilities ?? [...legacyCapabilities], legacyLimited: !!m.legacyLimited, limits: m.principal.limits ?? {},
+        connection: { state: !m.principal.enabled ? m.editPending ? 'needs_review' : 'revoked'
+          : Date.parse(m.principal.expiresAt) <= Date.now() ? 'expired' : m.lastRequestAt ? 'active' : 'not_connected',
+          ...(m.lastRequestAt ? { lastRequestAt: m.lastRequestAt } : {}) } })),
       summary: inventorySummary(this.inventoryCache),
+      connectionGuide: { kind: 'service-client', network: 'Home Assistant private app network', directPhoneJoin: false,
+        ...(this.serviceHostname && /^[a-z0-9][a-z0-9-]{0,62}$/.test(this.serviceHostname) ? { baseUrl: `http://${this.serviceHostname}:8098` } : {}) },
       activity: this.journal.latest(50),
       custody: 'Local authority and signing keys are stored in this app’s private data. Backups contain those keys.',
       needsRecovery: existsSync(this.transition) || (this.state.resources.length > 0 && !this.state.expectations.some(e => e.capability === 'ha.entity.read')) };
+  }
+
+  /** An authenticated HTTP request is evidence of a client visit, never a live-online assertion. */
+  async noteClientVisit(id: string): Promise<void> {
+    return this.exclusive(async () => {
+      const member = this.state.members.find(m => m.principal.id === id && !m.haUser);
+      if (!member || !member.principal.enabled || Date.parse(member.principal.expiresAt) <= Date.now()) throw new AppError('access_ended', 'This access is no longer available.', 401);
+      this.recordVisit(member);
+    });
+  }
+
+  private recordVisit(member: Member) {
+    member.lastRequestAt = new Date().toISOString();
+    const now = Date.now();
+    if (now - (this.presenceWritten.get(member.principal.id) ?? 0) >= 60000) { writePrivate(this.stateFile, this.state); this.presenceWritten.set(member.principal.id, now); }
+  }
+
+  private validateLimits(granted: Capability[], limits: Principal['limits']): NonNullable<Principal['limits']> {
+    if (!granted.includes('ha.media.volume')) return {};
+    const max = limits?.maxVolumePct;
+    if (max !== undefined && (!Number.isFinite(max) || max < 0 || max > 100)) throw new AppError('invalid_limits', 'Choose a volume ceiling between 0 and 100%.');
+    return max === undefined ? {} : { maxVolumePct: max };
+  }
+
+  private async applyLimits(principal: Principal, requested: Principal['limits']): Promise<void> {
+    const limits = this.validateLimits(principal.capabilities ?? [], requested);
+    const policyId = `gmha-volume-${canonicalDigest(principal.id).slice(0, 32)}`;
+    // The same subject may be explicitly edited or an interrupted edit retried.
+    // Remove its previous ceiling only while its local profile is disabled and old membership revoked.
+    const active = await this.admin.policy.active();
+    for (const entry of active.active.filter(p => p.policy_id === policyId)) await this.admin.policy.deactivate(entry.policy_id, entry.version);
+    principal.limits = limits; principal.operationPolicies = [];
+    if (limits.maxVolumePct === undefined) return;
+    const policy = await this.admin.policy.publish({ policy_id: policyId, description: 'This participant media volume ceiling',
+      valid_from: new Date(Date.now() - 60000).toISOString(), valid_until: new Date(Date.now() + 365 * 86400000).toISOString(),
+      selector: { capabilities: ['ha.media.volume'], requester_sovereign_ids: [principal.id] },
+      gates: [{ gate_id: 'participant-volume-ceiling', gate_type: 'max_value.v1', order: 0, config: { path: 'request_parameters.volumePct', max: limits.maxVolumePct } }],
+    });
+    await this.admin.policy.activate(policy.policy_id, policy.version);
+    principal.operationPolicies = [{ capability: 'ha.media.volume', policies: [{ id: policy.policy_id, version: policy.version, digest: policyDigest(policy) }] }];
   }
 
   private async issue(id: string, kind: ParticipantKind, resources: string[], hours: number, granted: Capability[]): Promise<Principal> {
@@ -190,12 +236,14 @@ export class ManagedHome {
         granted.some(cap => !catalog.some(r => resources.includes(r.id) && r.operations.some(op => op.capability === cap)))) throw new AppError('unsupported_scope', 'One of the selected operations is no longer supported. Refresh Devices and review access.');
   }
 
-  async addMember(name: string, kind: ParticipantKind, resources: string[], hours: number, requested?: Capability[]) {
+  async addMember(name: string, kind: ParticipantKind, resources: string[], hours: number, requested?: Capability[], limits?: Principal['limits']) {
     return this.exclusive(async () => {
       const granted = requested ?? [...new Set(this.state.resources.filter(r => resources.includes(r.id) && ['light', 'climate'].includes(r.kind)).map(r => r.kind === 'climate' ? 'ha.climate.set_temperature' as const : 'ha.light.set' as const))];
       await this.checkScope(resources, granted, hours);
+      this.validateLimits(granted, limits);
       if (this.state.members.length >= 128) throw new AppError('access_limit', 'This preview supports at most 128 access profiles.');
       const principal = await this.issue(`${kind}-${randomUUID()}`, kind, resources, hours, granted);
+      await this.applyLimits(principal, limits);
       const credential = randomBytes(32).toString('base64url'); principal.credentialSha256 = credentialDigest(credential);
       this.state.members.push({ name, principal }); writePrivate(this.stateFile, this.state);
       this.rebuild();
@@ -203,17 +251,21 @@ export class ManagedHome {
     });
   }
 
-  async updateMember(id: string, resources: string[], granted: Capability[], hours: number) {
+  async updateMember(id: string, resources: string[], granted: Capability[], hours: number, limits?: Principal['limits']) {
     return this.exclusive(async () => {
       await this.checkScope(resources, granted, hours);
       const member = this.state.members.find(m => m.principal.id === id && !m.haUser);
       if (!member) throw new AppError('access_not_found', 'Access profile not found.', 404);
+      if (!member.principal.enabled && !member.editPending) throw new AppError('access_revoked', 'Revoked credentials cannot be renewed. Create a new access profile.', 409);
       const previous = member.principal;
-      member.principal.enabled = false; writePrivate(this.stateFile, this.state); this.rebuild();
-      await this.admin.attestation.revoke(previous.attestationId, { reason: 'Access scope explicitly updated by a Home Assistant administrator' });
+      const nextLimits = this.validateLimits(granted, limits ?? previous.limits);
+      member.principal.enabled = false; member.editPending = true; writePrivate(this.stateFile, this.state); this.rebuild();
+      const oldMembership = await this.admin.attestation.get(previous.attestationId);
+      if (oldMembership.status !== 'revoked') await this.admin.attestation.revoke(previous.attestationId, { reason: 'Access scope explicitly updated by a Home Assistant administrator' });
       const replacement = await this.issue(previous.id, previous.kind, resources, hours, granted);
+      await this.applyLimits(replacement, nextLimits);
       replacement.credentialSha256 = previous.credentialSha256;
-      member.principal = replacement; member.legacyLimited = false;
+      member.principal = replacement; member.legacyLimited = false; member.editPending = false;
       writePrivate(this.stateFile, this.state); this.rebuild();
       return { id: replacement.id, expiresAt: replacement.expiresAt };
     });
@@ -223,9 +275,10 @@ export class ManagedHome {
     return this.exclusive(async () => {
       const member = this.state.members.find(m => m.principal.id === id && !m.haUser);
       if (!member) throw new AppError('access_not_found', 'Access profile not found.', 404);
-      await this.admin.attestation.revoke(member.principal.attestationId, { reason: 'Access ended by a Home Assistant administrator' });
-      member.principal.enabled = false; writePrivate(this.stateFile, this.state);
+      member.principal.enabled = false; member.editPending = false; writePrivate(this.stateFile, this.state);
       this.rebuild();
+      const membership = await this.admin.attestation.get(member.principal.attestationId);
+      if (membership.status !== 'revoked') await this.admin.attestation.revoke(member.principal.attestationId, { reason: 'Access ended by a Home Assistant administrator' });
     });
   }
 
@@ -233,6 +286,7 @@ export class ManagedHome {
     return this.exclusive(async () => {
       if (!this.ready) throw new AppError('setup_required', 'Finish choosing resources before trying an action.', 409);
       const principal = await this.ensureHuman(user);
+      this.recordVisit(this.state.members.find(m => m.haUser === user.id)!);
       return this.runtime!.executor.execute(principal, intent);
     });
   }
@@ -248,5 +302,5 @@ export class ManagedHome {
   }
 
   async flush() { return this.exclusive(async () => { if (this.runtime) await this.runtime.executor.flush(); }); }
-  async close() { await this.tail; await this.runtime?.executor.idle(); this.journal.close(); }
+  async close() { await this.tail; await this.runtime?.executor.idle(); writePrivate(this.stateFile, this.state); this.journal.close(); }
 }

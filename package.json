@@ -12,7 +12,8 @@
     "test": "npm run build && node --test dist/tests/*.test.js",
     "test:integration": "npm run build && node scripts/integration.mjs",
     "start": "node dist/src/main.js",
-    "test:web": "npm run build && node scripts/test-web.mjs"
+    "test:web": "npm run build && node scripts/test-web.mjs",
+    "test:browser:live": "npm run build && node scripts/browser-acceptance.mjs"
   },
   "dependencies": {
     "ajv": "8.20.0",

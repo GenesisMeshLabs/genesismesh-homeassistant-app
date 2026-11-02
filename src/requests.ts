@@ -19,7 +19,8 @@ export function compileAction(config: RuntimeConfig, principal: Principal, inten
   }
   if (!(principal.capabilities ?? legacyCapabilities).includes(intent.capability)) throw new AppError('operation_not_shared', 'This operation was not granted to this participant.', 403);
   const parameters: Record<string, string | number> = intent.capability === 'ha.climate.set_temperature'
-    ? { temperature_c: intent.parameters['temperatureC']! } : { ...intent.parameters };
+    ? { temperature_c: intent.parameters['temperatureC']! }
+    : intent.capability === 'ha.helper.number' ? { numeric_setting: intent.parameters['value']! } : { ...intent.parameters };
   let command: CompiledAction['command'];
   try { command = commandFor(resource.kind, intent.capability, resource.entityId, intent.parameters); }
   catch { throw new AppError('unsupported_action', 'This action is not supported for the selected resource.'); }

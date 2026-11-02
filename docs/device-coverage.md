@@ -13,6 +13,13 @@ checks signed capability claims; the app additionally narrows resources and
 operations locally. An observer can read without writing. Templates fill a
 reviewable selection; they do not override policies.
 
+Media profiles can also set a volume ceiling. This is an exact-subject signed
+`max_value.v1` policy, pinned by ID, version and digest alongside household
+rules. Raising or removing the ceiling requires an explicit profile edit.
+Profile expiry is independent of policy validity; a short-lived client must not
+expire a shared authority policy set. Global policy rollover remains a separate
+operational limit of this preview.
+
 | Entity type | Current controls |
 | --- | --- |
 | Lights | On/off, brightness |
@@ -60,6 +67,23 @@ The administrator reviews and saves sharing to pin the expanded policy set.
 Editing an access profile deliberately replaces membership and preserves its
 bearer credential. Edits disable access durably before issuing replacement
 membership, so an interrupted edit cannot silently widen access.
+
+An expired profile can be renewed deliberately. A revoked credential cannot be
+revived: create a new profile instead. Interrupted edits can be reviewed/retried
+or ended. Ending access disables the local credential before contacting the
+authority; if the authority is unavailable its revocation cleanup still needs
+attention, but this app already refuses that credential.
+
+Client usage records actual authenticated HTTP requests, including resource
+discovery. "Last request" is not an always-online indicator. First contact is
+persisted immediately, subsequent presence timestamps at most once a minute and
+on graceful shutdown. Native administrator requests also update their profile.
+
+The service-client connection guide uses the actual validated HA container
+hostname on the private app network. It does not open a host port or make a
+phone directly joinable. The saved credential and examples are for a trusted
+service client; native household-user invitations and remote pairing remain
+future work.
 
 The management queue is bounded to 32 pending operations and activity queries
 read at most 50 recent records. Persistent evidence history has no automatic

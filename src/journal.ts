@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { canonicalJson, parseJson, type EvidenceOutbox, type OutboxEntry } from 'genesis-mesh-sdk';
 import type { CompiledAction, Operation } from './contracts.js';
 import { AppError } from './errors.js';
+import { definition } from './device-actions.js';
 
 /** One writer per data directory. A separate SQLite exclusive lock is released on process death. */
 export class Journal {
@@ -134,6 +135,8 @@ export class Journal {
       resourceId: action.resource.id, capability: action.capability, digest: action.digest,
       commandState: 'reserved', evidenceState: 'none', decisionId: null, evidenceId: null, policyFailures: [],
       reason: 'awaiting_authority', createdAt: now, updatedAt: now,
+      parameters: structuredClone(action.parameters),
+      summary: `${definition(action.capability)?.label ?? action.capability}${Object.keys(action.parameters).length ? ` · ${Object.entries(action.parameters).map(([key, value]) => `${key === 'temperature_c' ? 'Temperature °C' : key === 'numeric_setting' ? 'Value' : definition(action.capability)?.parameters.find(p => p.name === key)?.label ?? key}: ${value}`).join(', ')}` : ''}`.slice(0, 500),
     };
     this.db.prepare('INSERT INTO operations(id, subject, request_id, digest, resource, data) VALUES (?, ?, ?, ?, ?, ?)')
       .run(op.id, op.subjectId, op.requestId, op.digest, op.resourceId, JSON.stringify(op));

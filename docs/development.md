@@ -19,6 +19,8 @@ npm test
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r authority-requirements.txt
 npm run test:integration
+npm run test:web
+npm run test:browser:live
 ```
 
 Use `.venv/bin/python` on Linux/macOS. `GM_TEST_PYTHON` may point to a specific
@@ -103,6 +105,12 @@ Do not put it, signing keys or HA credentials in a model prompt or browser.
 `GET /health` is liveness only; it does not establish authority/device readiness.
 Other routes require `Authorization: Bearer <participant-credential>`.
 
+The managed UI supplies the internal client base URL and examples. The endpoint
+is reachable only from the private HA app network; creating a profile does not
+pair a phone or create a native HA user. Use the profile's separate credential,
+not a Supervisor or HA administrator token. A successful authenticated resource
+request updates its last-used status without operating a device.
+
 - `GET /v1/resources`: this participant's configured resources and identity
   assurance. It does not promise the core will allow every listed action.
 - `POST /v1/actions`: one exact request, below.
@@ -132,6 +140,13 @@ unknown command outcome. HTTP 403 is used for signed denial or refused local
 scope/auth; inspect the response type. HTTP 503 is a blocked pre-dispatch or
 executor failure. HTTP 409 means intent conflict or target reconciliation is
 required. No response is permission to override a DENY or retry an unknown action.
+
+New operation records also contain a readable `summary` and bounded finite
+`parameters`. Historical records can lack these fields. Observation responses
+have `commandState: "observed"` and a curated `observation`; their receipt binds
+its digest. Numeric profile ceilings are real signed authority policies, not
+only browser input restrictions. A returned signed refusal names its policy
+gate and does not dispatch an HA command.
 
 ## Remaining acceptance gates
 
