@@ -35,6 +35,18 @@ jobs:
           path: temp/ha-app-*.png
           if-no-files-found: ignore
           retention-days: 14
+  native-ha:
+    needs: verify
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24.14.0
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: bash scripts/test-ha-core.sh
   plan:
     needs: verify
     if: github.event_name != 'pull_request'
@@ -79,7 +91,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - run: bash scripts/stage-image.sh
   publish:
-    needs: [plan, images]
+    needs: [plan, images, native-ha]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

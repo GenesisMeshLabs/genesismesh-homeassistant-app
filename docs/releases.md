@@ -5,7 +5,9 @@ the remaining work without a local Docker installation, uploaded image or
 long-lived publication secret:
 
 1. Install locked JavaScript dependencies and the pinned authority with its
-   constraints; run unit, real-authority integration and browser tests.
+   constraints; run unit, real-authority integration and browser tests. A separate
+   pinned real HA Core container verifies native role changes and REST catalog
+   compatibility; it never dispatches a physical command.
 2. Allocate `0.1.0-dev.<workflow run number>` (the base is in app config).
 3. Build native amd64 and arm64 images on separate runners. Each starts a fresh
    authority automatically and passes scoped-access, deny, fresh native-role,

@@ -38,7 +38,7 @@ if (main !== revision) {
   throw new Error('Main advanced after verification. Leaving its metadata intact; the newer run will publish.');
 }
 const temporary = mkdtempSync(join(tmpdir(), 'mesh-release-'));
-const notes = `Experimental Home Assistant app ${version}\n\nSource: ${revision}\nImage: ${ref}\nDigest: ${digest(ref)}\n\nNative amd64 and arm64 container gates, real Genesis Mesh authority integration, unit and browser journeys passed. Supervisor/Core proxy and device behavior in container smoke are simulated. HA OS installation and physical-device acceptance remain unverified.\n\nInstall repository: https://github.com/${repository}\n\nOnline local custody: backups include authority keys. No offline mode, recovery, universal interception or physical outcome claims.\n`;
+const notes = `Experimental Home Assistant app ${version}\n\nSource: ${revision}\nImage: ${ref}\nDigest: ${digest(ref)}\n\nNative amd64 and arm64 container gates, real Genesis Mesh authority integration, real HA Core native role/API compatibility, unit and browser journeys passed. Supervisor proxy and device behavior in app-container smoke are simulated. HA OS installation and physical-device acceptance remain unverified.\n\nInstall repository: https://github.com/${repository}\n\nOnline local custody: backups include authority keys. No offline mode, recovery, universal interception or physical outcome claims.\n`;
 writeFileSync(join(temporary, 'notes.md'), notes);
 try { run('gh', ['release', 'view', `v${version}`, '--repo', repository]); }
 catch { run('gh', ['release', 'create', `v${version}`, '--repo', repository, '--target', revision, '--prerelease', '--title', `Genesis Mesh HA ${version}`, '--notes-file', join(temporary, 'notes.md')]); }
