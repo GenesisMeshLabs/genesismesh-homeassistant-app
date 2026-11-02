@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.0-dev.5
+
+- Verified preview image from 1268216. See the GitHub prerelease for checks and limitations.
+
 ## 0.1.0-dev.3
 
 - Verified preview image from eaa916c. See the GitHub prerelease for checks and limitations.
