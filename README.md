@@ -66,5 +66,5 @@ the Genesis Mesh SDK. Add a thin optional Home Assistant integration only where
 native LLM tools, automations or identity propagation require it. Validate these
 choices in short feasibility spikes before making runtime commitments.
 
-No remote repository, release, dependency install or Home Assistant instance
-has been created or changed by this planning scaffold.
+No release, runtime dependency installation or Home Assistant instance has been
+created or changed by this planning scaffold.
