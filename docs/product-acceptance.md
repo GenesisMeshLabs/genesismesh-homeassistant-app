@@ -24,9 +24,20 @@ The original unsaved sharing tab was not navigated or applied.
 Installed-server review identified additional experience improvements: reduce
 initial picker density, keep navigation reachable, provide code-copy feedback,
 preserve the job view during native setup, and show the observer's useful latest
-snapshot. These are follow-up acceptance items, not evidence that a non-author
-human novice has completed the journey. Future review records must distinguish
-the published source from installed browser results and physical outcomes.
+snapshot. The fixes shipped at source `dc2a70d` in `0.1.0-dev.6`. Both reviewers
+rechecked the installed UI and accepted the closure: the observer's fresh value,
+unit and timestamp appeared first, the actual queued read produced acknowledged
+signed evidence, picker/navigation density was reduced, and native handoff and
+instructions matched the granted read-only actions. Native integration version
+and entry health were independently checked. No remaining blocker was found for
+this experimental native-workflow increment.
+
+The original draft remained untouched. Responsive Chrome checks are not physical
+mobile acceptance, and reviewer completion is not a non-author human novice
+session. Clipboard success/fallback remained fixture evidence during the final
+recheck; no working credential was rotated for that purpose. Native automation
+links were visited but no recurring automation was created. These distinctions
+remain part of release acceptance rather than blanket production claims.
 
 Reviewed against the user's requirements: useful whole-home coverage; people,
 agents, machines and devices as participants; familiar novice UX; maintainable

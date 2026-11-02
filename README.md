@@ -5,8 +5,11 @@ devices, with limits you own and decisions you can verify.**
 
 Status: **experimental preview**. The backend and HA ingress interface are
 implemented, including automatic local-authority setup, scoped access and
-activity. Software tests use a real Genesis Mesh authority and simulated HA
-devices. HA OS installation and physical-device acceptance remain separate gates.
+activity. Software tests use real HA Core, the companion and Genesis Mesh
+authority with simulated device responses. Native pairing and signed reads have
+also been reviewed on an installed HA OS server. Physical controls and
+non-author novice acceptance remain separate gates; see
+[the verification record](docs/verification.md).
 
 Home Assistant connects devices, runs automations and supplies the everyday
 home interface. This project adds a governed path for delegated requests:

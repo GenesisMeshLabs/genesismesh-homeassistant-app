@@ -21,9 +21,38 @@ legacy-edit scope expansion; both now use native job validation. Regression
 tests also cover changed registry identity, single-use pairing, actor override,
 replay/conflicting values, preserved old scopes and credential replacement.
 
-Release/container CI and installed-server reviewer navigation remain pending
-until separately recorded. This is not physical-device or novice acceptance.
-Historical baseline notes below do not mean the new increment is deployed.
+The [dev.6 release](https://github.com/GenesisMeshLabs/genesismesh-homeassistant-app/releases/tag/v0.1.0-dev.6)
+passed [all six CI jobs](https://github.com/GenesisMeshLabs/genesismesh-homeassistant-app/actions/runs/41502810762)
+at source `dc2a70de63df1754815fd79e5a2d43dd6007b332`: software/browser checks,
+real native-Core connected integration, both architecture image gates and
+publication. The manual and HACS ZIPs contain matching versioned manifests;
+the manual ZIP's published SHA256 and both archive CRCs were checked independently.
+
+The existing HA OS server was backed up and updated to dev.6, its matching
+companion installed, and Core restarted. Existing resource eligibility and the
+paired read-only observer survived. Independent installed-server review first
+proved dev.5 native pairing, a real companion read and signed evidence without
+device control, then supplied the UX findings implemented in dev.6. Both reviewers
+subsequently accepted the installed dev.6 UI: the existing job and expiry
+survived; a fresh companion read updated its visible value/unit/time and signed
+record; the product owner independently matched that result to Activity and
+confirmed native integration version/health. No new grants, credential rotation
+or physical control were needed for the final recheck. This is not
+physical-control or non-author novice acceptance. Earlier baseline notes below
+are retained as historical records, not overrides of this newer evidence.
+
+Installed UX acceptance also covered suggested measurement defaults, compact
+native room/device groups, all-readable-state search, reachable wizard actions,
+existing jobs before creation prompts, grant-specific guidance and a real native
+automations link. Chrome viewport checks at 1258×586 and 390×844 showed the
+snapshot/navigation without horizontal clipping; the temporary viewport was
+restored. These are responsive browser checks, not physical phone tests. Code
+copy success/fallback was fixture-tested; the final installed recheck did not
+rotate a working credential merely to exercise the clipboard.
+
+Creating a job does not create a recurring HA automation. The native editor
+link and permitted actions worked; no new automation was created during review.
+Private screenshots and full reviewer reports remain ignored under `temp/`.
 
 Recorded 2026-11-02. Local checks ran on Windows, Node 24.14.0 and Python 3.14.3;
 publication gates ran independently on GitHub-hosted Linux amd64/arm64 runners.
